@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 import { JobDetailModal } from '@/components/JobDetailModal';
 import { ThemedText } from '@/components/ThemedText';
@@ -9,12 +9,11 @@ import { Job } from '@/constants/JobsData';
 import { useJobs } from '@/contexts/JobContext';
 
 interface JobCardProps {
-  job: Job;
-  jobIndex: number;
+  job: Job & { id: string };
   onPress: () => void;
 }
 
-function JobCard({ job, jobIndex, onPress }: JobCardProps) {
+function JobCard({ job, onPress }: JobCardProps) {
   const getStatusColor = (status: Job['status']) => {
     switch (status) {
       case 'open': return '#FF6B6B';
@@ -59,19 +58,17 @@ function JobCard({ job, jobIndex, onPress }: JobCardProps) {
 }
 
 export default function HomeScreen() {
-  const { jobs, markOnSite, completeJob } = useJobs();
-  const [selectedJob, setSelectedJob] = useState<{ job: Job; index: number } | null>(null);
-  
-  // Filter for active jobs only (accepted and onsite) - exclude completed
-  const myJobs = jobs
-    .map((job, index) => ({ job, index }))
-    .filter(({ job }) => 
-      job.status === 'accepted' || job.status === 'onsite'
-    );
+  const { userJobs, userJobsLoading, markOnSite, completeJob } = useJobs();
+  const [selectedJob, setSelectedJob] = useState<(Job & { id: string }) | null>(null);
 
-  const handleJobPress = (job: Job, index: number) => {
-    setSelectedJob({ job, index });
-  };
+  if (userJobsLoading) {
+    return (
+      <ThemedView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#4ECDC4" />
+        <ThemedText style={styles.loadingText}>Loading your jobs...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -81,7 +78,7 @@ export default function HomeScreen() {
           <ThemedText style={styles.subtitle}>Active jobs assigned to you</ThemedText>
         </ThemedView>
         
-        {myJobs.length === 0 ? (
+        {userJobs.length === 0 ? (
           <ThemedView style={styles.emptyState}>
             <IconSymbol name="house.fill" size={48} color="#CCC" />
             <ThemedText style={styles.emptyText}>No active jobs</ThemedText>
@@ -89,12 +86,11 @@ export default function HomeScreen() {
           </ThemedView>
         ) : (
           <ThemedView style={styles.jobsList}>
-            {myJobs.map(({ job, index }) => (
+            {userJobs.map((job) => (
               <JobCard 
-                key={index} 
+                key={job.id} 
                 job={job} 
-                jobIndex={index}
-                onPress={() => handleJobPress(job, index)}
+                onPress={() => setSelectedJob(job)}
               />
             ))}
           </ThemedView>
@@ -103,8 +99,7 @@ export default function HomeScreen() {
 
       <JobDetailModal
         visible={selectedJob !== null}
-        job={selectedJob?.job || null}
-        jobIndex={selectedJob?.index || 0}
+        job={selectedJob}
         onClose={() => setSelectedJob(null)}
         onMarkOnSite={markOnSite}
         onComplete={completeJob}
@@ -225,5 +220,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#45B7D1',
     fontWeight: '500',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    opacity: 0.7,
   },
 });

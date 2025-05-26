@@ -1,62 +1,124 @@
-import { dummyJobs, Job } from '@/constants/JobsData';
-import React, { createContext, ReactNode, useContext, useState } from 'react';
+import { Job } from '@/constants/JobsData';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  acceptJob as acceptJobService,
+  completeJob as completeJobService,
+  markJobOnSite as markJobOnSiteService,
+  subscribeToOpenJobs,
+  subscribeToUserJobs
+} from '@/services/jobService';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 interface JobContextType {
-  jobs: Job[];
-  acceptJob: (jobIndex: number, contractorName: string) => void;
-  markOnSite: (jobIndex: number, photo: string, notes: string) => void;
-  completeJob: (jobIndex: number, photo: string, notes: string) => void;
+  openJobs: (Job & { id: string })[];
+  userJobs: (Job & { id: string })[];
+  openJobsLoading: boolean;
+  userJobsLoading: boolean;
+  acceptJob: (jobId: string) => Promise<void>;
+  markOnSite: (jobId: string, photo: string, notes: string) => Promise<void>;
+  completeJob: (jobId: string, photo: string, notes: string) => Promise<void>;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
 
 export function JobProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<Job[]>(dummyJobs);
+  const [openJobs, setOpenJobs] = useState<(Job & { id: string })[]>([]);
+  const [userJobs, setUserJobs] = useState<(Job & { id: string })[]>([]);
+  const [openJobsLoading, setOpenJobsLoading] = useState(true);
+  const [userJobsLoading, setUserJobsLoading] = useState(true);
+  const { user } = useAuth();
 
-  const acceptJob = (jobIndex: number, contractorName: string) => {
-    setJobs(prevJobs => 
-      prevJobs.map((job, index) => 
-        index === jobIndex 
-          ? { ...job, status: 'accepted' as const, acceptedBy: contractorName }
-          : job
-      )
-    );
+  // Subscribe to open jobs (for "All Jobs" tab)
+  useEffect(() => {
+    console.log('Setting up open jobs subscription...');
+    
+    const unsubscribe = subscribeToOpenJobs((jobs) => {
+      console.log('Open jobs updated:', jobs.length, 'jobs');
+      setOpenJobs(jobs);
+      setOpenJobsLoading(false);
+    });
+
+    return () => {
+      console.log('Cleaning up open jobs subscription');
+      unsubscribe();
+    };
+  }, []);
+
+  // Subscribe to user's jobs (for "My Jobs" tab)
+  useEffect(() => {
+    if (!user) {
+      console.log('No user, clearing user jobs');
+      setUserJobs([]);
+      setUserJobsLoading(false);
+      return;
+    }
+
+    console.log('Setting up user jobs subscription for:', user.uid);
+
+    const unsubscribe = subscribeToUserJobs(user.uid, (jobs) => {
+      console.log('User jobs updated:', jobs.length, 'jobs for user', user.uid);
+      setUserJobs(jobs);
+      setUserJobsLoading(false);
+    });
+
+    return () => {
+      console.log('Cleaning up user jobs subscription');
+      unsubscribe();
+    };
+  }, [user]);
+
+  const acceptJob = async (jobId: string) => {
+    if (!user) {
+      console.error('No user authenticated');
+      throw new Error('User not authenticated');
+    }
+    
+    console.log('Attempting to accept job:', jobId, 'for user:', user.uid);
+    
+    try {
+      const userName = user.displayName || user.email || 'Unknown';
+      
+      await acceptJobService(jobId, user.uid, userName);
+      console.log('Job accepted successfully:', jobId);
+      
+    } catch (error) {
+      console.error('Error accepting job:', error);
+      throw error;
+    }
   };
 
-  const markOnSite = (jobIndex: number, photo: string, notes: string) => {
-    setJobs(prevJobs => 
-      prevJobs.map((job, index) => 
-        index === jobIndex 
-          ? { 
-              ...job, 
-              status: 'onsite' as const, 
-              onsiteTime: new Date().toISOString(),
-              workStartedImage: photo,
-              workStartedNotes: notes
-            }
-          : job
-      )
-    );
+  const markOnSite = async (jobId: string, photo: string, notes: string) => {
+    console.log('Marking job on-site:', jobId);
+    try {
+      await markJobOnSiteService(jobId, photo, notes);
+      console.log('Job marked on-site successfully:', jobId);
+    } catch (error) {
+      console.error('Error marking job on-site:', error);
+      throw error;
+    }
   };
 
-  const completeJob = (jobIndex: number, photo: string, notes: string) => {
-    setJobs(prevJobs => 
-      prevJobs.map((job, index) => 
-        index === jobIndex 
-          ? { 
-              ...job, 
-              status: 'completed' as const, 
-              completedTime: new Date().toISOString(),
-              workCompletedImage: photo,
-              workCompletedNotes: notes
-            }
-          : job
-      )
-    );
+  const completeJob = async (jobId: string, photo: string, notes: string) => {
+    console.log('Completing job:', jobId);
+    try {
+      await completeJobService(jobId, photo, notes);
+      console.log('Job completed successfully:', jobId);
+    } catch (error) {
+      console.error('Error completing job:', error);
+      throw error;
+    }
   };
 
   return (
-    <JobContext.Provider value={{ jobs, acceptJob, markOnSite, completeJob }}>
+    <JobContext.Provider value={{ 
+      openJobs,
+      userJobs,
+      openJobsLoading,
+      userJobsLoading,
+      acceptJob, 
+      markOnSite, 
+      completeJob 
+    }}>
       {children}
     </JobContext.Provider>
   );

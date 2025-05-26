@@ -2,33 +2,23 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Job } from '@/constants/JobsData';
+import { useAuth } from '@/contexts/AuthContext';
 import { useJobs } from '@/contexts/JobContext';
 import React from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface JobCardProps {
-  job: Job;
-  jobIndex: number;
-  onAccept: (jobIndex: number) => void;
+  job: Job & { id: string };
+  onAccept: (jobId: string) => void;
 }
 
-function JobCard({ job, jobIndex, onAccept }: JobCardProps) {
-  const getStatusColor = (status: Job['status']) => {
-    switch (status) {
-      case 'open': return '#FF6B6B';
-      case 'accepted': return '#4ECDC4';
-      case 'onsite': return '#45B7D1';
-      case 'completed': return '#96CEB4';
-      default: return '#666';
-    }
-  };
-
+function JobCard({ job, onAccept }: JobCardProps) {
   return (
     <ThemedView style={styles.jobCard}>
       <ThemedView style={styles.jobHeader}>
         <ThemedText type="subtitle" style={styles.jobTitle}>{job.title}</ThemedText>
-        <ThemedView style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
-          <ThemedText style={styles.statusText}>{job.status}</ThemedText>
+        <ThemedView style={[styles.statusBadge, { backgroundColor: '#FF6B6B' }]}>
+          <ThemedText style={styles.statusText}>open</ThemedText>
         </ThemedView>
       </ThemedView>
       
@@ -41,7 +31,12 @@ function JobCard({ job, jobIndex, onAccept }: JobCardProps) {
         </ThemedView>
       </ThemedView>
 
-      <TouchableOpacity style={styles.acceptButton} onPress={() => onAccept(jobIndex)}>
+      <ThemedView style={styles.debugInfo}>
+        <ThemedText style={styles.debugText}>Job ID: {job.id}</ThemedText>
+        <ThemedText style={styles.debugText}>Status: {job.status}</ThemedText>
+      </ThemedView>
+
+      <TouchableOpacity style={styles.acceptButton} onPress={() => onAccept(job.id)}>
         <ThemedText style={styles.acceptButtonText}>Accept Job</ThemedText>
       </TouchableOpacity>
     </ThemedView>
@@ -49,26 +44,47 @@ function JobCard({ job, jobIndex, onAccept }: JobCardProps) {
 }
 
 export default function TabTwoScreen() {
-  const { jobs, acceptJob } = useJobs();
+  const { openJobs, openJobsLoading, acceptJob } = useJobs();
+  const { user } = useAuth();
 
-  // Filter to only show open jobs
-  const openJobs = jobs
-    .map((job, index) => ({ job, index }))
-    .filter(({ job }) => job.status === 'open');
+  console.log('AllJobs render:', { 
+    openJobsCount: openJobs.length, 
+    loading: openJobsLoading, 
+    userEmail: user?.email,
+    userId: user?.uid 
+  });
 
-  const handleAcceptJob = (jobIndex: number) => {
-    Alert.alert(
-      'Accept Job',
-      'Are you sure you want to accept this job?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Accept', 
-          onPress: () => acceptJob(jobIndex, 'Current User') // In real app, get from user context
-        }
-      ]
-    );
+  const handleAcceptJob = async (jobId: string) => {
+    console.log('=== ACCEPT JOB START ===');
+    console.log('handleAcceptJob called with jobId:', jobId);
+    console.log('Current user:', { email: user?.email, uid: user?.uid });
+
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to accept jobs');
+      return;
+    }
+
+    // TEMPORARILY REMOVE ALERT FOR TESTING
+    console.log('=== BYPASSING ALERT - ACCEPTING JOB DIRECTLY ===');
+    try {
+      console.log('Calling acceptJob with:', jobId);
+      await acceptJob(jobId);
+      console.log('=== JOB ACCEPTED SUCCESSFULLY ===');
+      Alert.alert('Success', 'Job accepted successfully!');
+    } catch (error) {
+      console.error('=== ERROR ACCEPTING JOB ===', error);
+      Alert.alert('Error', `Failed to accept job: ${error.message}`);
+    }
   };
+
+  if (openJobsLoading) {
+    return (
+      <ThemedView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#4ECDC4" />
+        <ThemedText style={styles.loadingText}>Loading available jobs...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -76,6 +92,9 @@ export default function TabTwoScreen() {
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">All Jobs</ThemedText>
           <ThemedText style={styles.subtitle}>Available jobs you can accept</ThemedText>
+          <ThemedText style={styles.debugText}>
+            Showing {openJobs.length} open jobs | User: {user?.email}
+          </ThemedText>
         </ThemedView>
         
         {openJobs.length === 0 ? (
@@ -86,11 +105,10 @@ export default function TabTwoScreen() {
           </ThemedView>
         ) : (
           <ThemedView style={styles.jobsList}>
-            {openJobs.map(({ job, index }) => (
+            {openJobs.map((job) => (
               <JobCard 
-                key={index} 
+                key={job.id} 
                 job={job} 
-                jobIndex={index}
                 onAccept={handleAcceptJob}
               />
             ))}
@@ -206,5 +224,24 @@ const styles = StyleSheet.create({
   acceptButtonText: {
     color: 'white',
     fontWeight: '600',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    opacity: 0.7,
+  },
+  debugInfo: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 4,
+  },
+  debugText: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginBottom: 2,
   },
 });

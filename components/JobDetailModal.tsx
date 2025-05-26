@@ -146,10 +146,12 @@ export function JobDetailModal({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <ThemedText type="title" style={styles.title}>Job Details</ThemedText>
-          <TouchableOpacity onPress={resetModal} style={styles.closeButton}>
-            <IconSymbol name="chevron.right" size={24} color="#666" />
+          <TouchableOpacity onPress={resetModal} style={styles.backButton}>
+            <IconSymbol name="chevron.left" size={24} color="#4ECDC4" />
+            <ThemedText style={styles.backText}>Back</ThemedText>
           </TouchableOpacity>
+          <ThemedText type="title" style={styles.title}>Job Details</ThemedText>
+          <ThemedView style={styles.headerSpacer} />
         </ThemedView>
 
         <ThemedView style={styles.content}>
@@ -286,11 +288,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E0E0E0',
   },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 8,
+  },
+  backText: {
+    color: '#4ECDC4',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   title: {
     flex: 1,
+    textAlign: 'center',
   },
-  closeButton: {
-    padding: 8,
+  headerSpacer: {
+    width: 60, // Same width as back button to center the title
   },
   content: {
     flex: 1,
