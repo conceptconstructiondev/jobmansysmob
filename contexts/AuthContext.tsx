@@ -1,13 +1,12 @@
 import { auth, removeNotificationToken, saveNotificationToken } from '@/config/firebase';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
-import { createClient } from '@supabase/supabase-js';
 import {
-  User,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile
+    User,
+    createUserWithEmailAndPassword,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile
 } from 'firebase/auth';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
@@ -21,11 +20,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const supabaseUrl = 'https://wxmwxbazfukpunmgdscu.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // This is all you need!
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

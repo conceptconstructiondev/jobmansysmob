@@ -18,7 +18,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.conceptapp.contractorapp",
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./app/google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +39,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/notification-icon.png",
+          "icon": "./assets/images/icon.png",
           "color": "#ffffff",
           "defaultChannel": "default",
           "useNextNotificationsApi": true

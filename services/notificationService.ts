@@ -8,14 +8,14 @@ import { Platform } from 'react-native';
 // Configure notification behavior (from official docs)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
+    shouldShowAlert: true,
     shouldShowBanner: true,
-    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
 });
 
-const PUSH_TOKENS_COLLECTION = 'pushTokens';
+const PUSH_TOKENS_COLLECTION = 'notificationTokens';
 
 interface PushTokenDoc {
   userId: string;
@@ -77,7 +77,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 // Save push token to Firestore
 export async function savePushToken(userId: string, token: string): Promise<void> {
   try {
-    const tokenDocRef = doc(db, 'pushTokens', userId);
+    const tokenDocRef = doc(db, 'notificationTokens', userId);
     const tokenDoc = await getDoc(tokenDocRef);
     if (!tokenDoc.exists()) {
       await setDoc(tokenDocRef, { token, platform: Platform.OS });
@@ -90,7 +90,7 @@ export async function savePushToken(userId: string, token: string): Promise<void
 // Get all push tokens for broadcasting
 export async function getAllPushTokens(): Promise<string[]> {
   try {
-    // Use 'notificationTokens' collection (same as AuthContext)
+    // Use consistent collection name
     const tokensRef = collection(db, 'notificationTokens');
     const querySnapshot = await getDocs(tokensRef);
     

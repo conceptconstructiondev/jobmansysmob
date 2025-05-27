@@ -37,11 +37,11 @@ function RootLayoutNav() {
       
       // Navigate to specific screens based on notification data
       if (data?.jobId) {
-        // Navigate to job details
-        router.push(`/(tabs)/jobs/${data.jobId}`);
+        // Navigate to all jobs instead
+        router.push(`/(tabs)/alljobs`);
       } else if (data?.type === 'job_created') {
         // Navigate to jobs list
-        router.push('/(tabs)/jobs');
+        router.push('/(tabs)/alljobs');
       }
     });
 

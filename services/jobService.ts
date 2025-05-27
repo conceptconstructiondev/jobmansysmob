@@ -278,7 +278,7 @@ export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 
 export const batchGetPushTokens = async (userIds: string[]): Promise<string[]> => {
   // Use 'in' query to get multiple tokens in one read
   const q = query(
-    collection(db, 'pushTokens'),
+    collection(db, 'notificationTokens'),
     where('userId', 'in', userIds.slice(0, 10)) // Firestore limit
   );
   const snapshot = await getDocs(q);
