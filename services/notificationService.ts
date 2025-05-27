@@ -1,29 +1,18 @@
-import { db } from '@/config/firebase';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { collection, doc, getDoc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
 import { Platform } from 'react-native';
+import { getAllPushTokens } from './supabaseService';
 
 // Configure notification behavior (from official docs)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldShowBanner: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
   }),
 });
-
-const PUSH_TOKENS_COLLECTION = 'notificationTokens';
-
-interface PushTokenDoc {
-  userId: string;
-  token: string;
-  platform: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
 
 // Register for push notifications (using EAS project ID)
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
@@ -34,7 +23,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       name: 'Job Notifications',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#4ECDC4',
+      lightColor: '#FF231F7C',
     });
   }
 
@@ -53,8 +42,11 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
 
     try {
-      // Use the correct EAS project ID
-      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? 'a982f974-2c28-43d8-a920-f7ba93ee57be';
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      
+      if (!projectId) {
+        throw new Error('Project ID not found');
+      }
       
       const pushTokenData = await Notifications.getExpoPushTokenAsync({
         projectId,
@@ -74,36 +66,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return token;
 }
 
-// Save push token to Firestore
-export async function savePushToken(userId: string, token: string): Promise<void> {
-  try {
-    const tokenDocRef = doc(db, 'notificationTokens', userId);
-    const tokenDoc = await getDoc(tokenDocRef);
-    if (!tokenDoc.exists()) {
-      await setDoc(tokenDocRef, { token, platform: Platform.OS });
-    }
-  } catch (error) {
-    console.error('Error saving push token:', error);
-  }
-}
-
-// Get all push tokens for broadcasting
-export async function getAllPushTokens(): Promise<string[]> {
-  try {
-    // Use consistent collection name
-    const tokensRef = collection(db, 'notificationTokens');
-    const querySnapshot = await getDocs(tokensRef);
-    
-    return querySnapshot.docs
-      .map(doc => doc.data().token)
-      .filter(token => token && token.length > 0);
-  } catch (error) {
-    console.error('Error fetching push tokens:', error);
-    return [];
-  }
-}
-
-// Send push notification using Expo Push Service (from docs)
+// Send push notification using Expo Push Service
 export async function sendPushNotification(
   tokens: string[],
   title: string,
@@ -169,7 +132,7 @@ export async function notifyNewJob(jobId: string, jobTitle: string, company: str
   }
 }
 
-// Notification event listeners (from docs)
+// Notification event listeners
 export function addNotificationResponseReceivedListener(
   listener: (response: Notifications.NotificationResponse) => void
 ): Notifications.EventSubscription {

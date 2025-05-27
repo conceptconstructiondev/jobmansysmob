@@ -1,8 +1,8 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { UserProfile } from '@/components/UserProfile';
-import { createJob } from '@/services/jobService';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
+import { createJob } from '@/services/supabaseService';
 import * as Notifications from 'expo-notifications';
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 

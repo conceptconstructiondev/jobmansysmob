@@ -1,24 +1,25 @@
 import { Job } from '@/constants/JobsData';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-    acceptJob as acceptJobService,
-    completeJob as completeJobService,
-    markJobOnSite as markJobOnSiteService,
-    subscribeToOpenJobs,
-    subscribeToUserJobs
-} from '@/services/jobService';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+  acceptJob,
+  completeJob,
+  getOpenJobs,
+  getUserJobs,
+  markJobOnSite,
+  subscribeToOpenJobs,
+  subscribeToUserJobs
+} from '@/services/supabaseService';
+import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
 interface JobContextType {
   openJobs: (Job & { id: string })[];
   userJobs: (Job & { id: string })[];
-  openJobsLoading: boolean;
-  userJobsLoading: boolean;
-  acceptJob: (jobId: string) => Promise<void>;
-  markOnSite: (jobId: string, photo: string, notes: string) => Promise<void>;
-  completeJob: (jobId: string, photo: string, notes: string) => Promise<void>;
-  setOpenJobsTabActive: (active: boolean) => void;
-  setUserJobsTabActive: (active: boolean) => void;
+  loading: boolean;
+  refreshOpenJobs: () => Promise<void>;
+  refreshUserJobs: () => Promise<void>;
+  acceptJobAction: (jobId: string) => Promise<void>;
+  markJobOnSiteAction: (jobId: string, photo: string, notes: string) => Promise<void>;
+  completeJobAction: (jobId: string, photo: string, notes: string) => Promise<void>;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -26,130 +27,118 @@ const JobContext = createContext<JobContextType | undefined>(undefined);
 export function JobProvider({ children }: { children: ReactNode }) {
   const [openJobs, setOpenJobs] = useState<(Job & { id: string })[]>([]);
   const [userJobs, setUserJobs] = useState<(Job & { id: string })[]>([]);
-  const [openJobsLoading, setOpenJobsLoading] = useState(true);
-  const [userJobsLoading, setUserJobsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  // Only subscribe when user is actively viewing the tab
-  const [isOpenJobsTabActive, setIsOpenJobsTabActive] = useState(false);
-  const [isUserJobsTabActive, setIsUserJobsTabActive] = useState(false);
-
-  // Subscribe to open jobs only AFTER user is authenticated
+  // Load initial data
   useEffect(() => {
-    if (!user) {
-      console.log('No user authenticated, clearing open jobs');
-      setOpenJobs([]);
-      setOpenJobsLoading(false);
-      return;
+    if (user) {
+      loadInitialData();
     }
+  }, [user]);
 
-    console.log('User authenticated, setting up open jobs subscription...');
-    
-    const unsubscribe = subscribeToOpenJobs((jobs) => {
-      console.log('Open jobs updated:', jobs.length, 'jobs');
+  // Set up real-time subscriptions
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribeOpen = subscribeToOpenJobs((jobs) => {
       setOpenJobs(jobs);
-      setOpenJobsLoading(false);
     });
 
-    return () => {
-      console.log('Cleaning up open jobs subscription');
-      unsubscribe();
-    };
-  }, [user]); // Now depends on user authentication
-
-  // Subscribe to user's jobs (for "My Jobs" tab)
-  useEffect(() => {
-    if (!user || !user.email) {
-      console.log('No user or email, clearing user jobs');
-      setUserJobs([]);
-      setUserJobsLoading(false);
-      return;
-    }
-
-    console.log('Setting up user jobs subscription for:', user.email);
-
-    const unsubscribe = subscribeToUserJobs(user.email, (jobs) => {
-      console.log('User jobs updated:', jobs.length, 'jobs for user', user.email);
+    const unsubscribeUser = subscribeToUserJobs(user.email!, (jobs) => {
       setUserJobs(jobs);
-      setUserJobsLoading(false);
     });
 
     return () => {
-      console.log('Cleaning up user jobs subscription');
-      unsubscribe();
+      unsubscribeOpen();
+      unsubscribeUser();
     };
   }, [user]);
 
-  useEffect(() => {
-    console.log('=== JOBS DEBUG ===');
-    console.log('Open jobs count:', openJobs.length);
-    console.log('User jobs count:', userJobs.length);
-    console.log('User email:', user?.email);
-    console.log('Loading states:', { openJobsLoading, userJobsLoading });
-  }, [openJobs, userJobs, user, openJobsLoading, userJobsLoading]);
-
-  const acceptJob = async (jobId: string) => {
-    if (!user) {
-      console.error('No user authenticated');
-      throw new Error('User not authenticated');
-    }
-    
-    console.log('Attempting to accept job:', jobId, 'for user:', user.email);
+  const loadInitialData = async () => {
+    if (!user) return;
     
     try {
-      const userName = user.displayName || user.email || 'Unknown';
-      const userEmail = user.email || 'unknown@email.com';
+      setLoading(true);
+      const [openJobsData, userJobsData] = await Promise.all([
+        getOpenJobs(),
+        getUserJobs(user.email!)
+      ]);
       
-      await acceptJobService(jobId, userEmail, userName);
-      console.log('Job accepted successfully:', jobId);
-      
+      setOpenJobs(openJobsData);
+      setUserJobs(userJobsData);
+    } catch (error) {
+      console.error('Error loading initial job data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshOpenJobs = async () => {
+    try {
+      const jobs = await getOpenJobs();
+      setOpenJobs(jobs);
+    } catch (error) {
+      console.error('Error refreshing open jobs:', error);
+    }
+  };
+
+  const refreshUserJobs = async () => {
+    if (!user) return;
+    
+    try {
+      const jobs = await getUserJobs(user.email!);
+      setUserJobs(jobs);
+    } catch (error) {
+      console.error('Error refreshing user jobs:', error);
+    }
+  };
+
+  const acceptJobAction = async (jobId: string) => {
+    if (!user) {
+      console.error('No user authenticated');
+      return;
+    }
+
+    try {
+      await acceptJob(jobId, user.email!, user.user_metadata?.display_name || user.email!);
+      await Promise.all([refreshOpenJobs(), refreshUserJobs()]);
     } catch (error) {
       console.error('Error accepting job:', error);
       throw error;
     }
   };
 
-  const markOnSite = async (jobId: string, photo: string, notes: string) => {
-    console.log('Marking job on-site:', jobId);
+  const markJobOnSiteAction = async (jobId: string, photo: string, notes: string) => {
     try {
-      await markJobOnSiteService(jobId, photo, notes);
-      console.log('Job marked on-site successfully:', jobId);
+      await markJobOnSite(jobId, photo, notes);
+      await refreshUserJobs();
     } catch (error) {
       console.error('Error marking job on-site:', error);
       throw error;
     }
   };
 
-  const completeJob = async (jobId: string, photo: string, notes: string) => {
-    console.log('Completing job:', jobId);
+  const completeJobAction = async (jobId: string, photo: string, notes: string) => {
     try {
-      await completeJobService(jobId, photo, notes);
-      console.log('Job completed successfully:', jobId);
+      await completeJob(jobId, photo, notes);
+      await refreshUserJobs();
     } catch (error) {
       console.error('Error completing job:', error);
       throw error;
     }
   };
 
-  const setOpenJobsTabActive = (active: boolean) => {
-    setIsOpenJobsTabActive(active);
-  };
-
-  const setUserJobsTabActive = (active: boolean) => {
-    setIsUserJobsTabActive(active);
-  };
-
   return (
-    <JobContext.Provider value={{ 
+    <JobContext.Provider value={{
       openJobs,
       userJobs,
-      openJobsLoading,
-      userJobsLoading,
-      acceptJob, 
-      markOnSite, 
-      completeJob,
-      setOpenJobsTabActive,
-      setUserJobsTabActive
+      loading,
+      refreshOpenJobs,
+      refreshUserJobs,
+      acceptJobAction,
+      markJobOnSiteAction,
+      completeJobAction,
     }}>
       {children}
     </JobContext.Provider>

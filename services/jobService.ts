@@ -2,19 +2,19 @@ import { db } from '@/config/firebase';
 import { Job } from '@/constants/JobsData';
 import { notifyNewJob } from '@/services/notificationService';
 import {
-    addDoc,
-    collection,
-    doc,
-    DocumentData,
-    getDocs,
-    limit,
-    onSnapshot,
-    orderBy,
-    query,
-    startAfter,
-    Timestamp,
-    updateDoc,
-    where
+  addDoc,
+  collection,
+  doc,
+  DocumentData,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  startAfter,
+  Timestamp,
+  updateDoc,
+  where
 } from 'firebase/firestore';
 
 const JOBS_COLLECTION = 'jobs';
@@ -79,21 +79,21 @@ export const getOpenJobs = async (): Promise<(Job & { id: string })[]> => {
   }
 };
 
-// Get only jobs for the current user (for "My Jobs" tab)
+// More efficient approach - get user jobs with any status, then filter
 export const getUserJobs = async (userEmail: string): Promise<(Job & { id: string })[]> => {
   try {
     const jobsRef = collection(db, JOBS_COLLECTION);
     const q = query(
       jobsRef,
       where('acceptedBy', '==', userEmail),
-      where('status', 'in', ['accepted', 'onsite']), // Filter at DB level
       orderBy('updatedAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => 
-      convertFirestoreJob(doc.id, doc.data())
-    );
+    // Filter in memory for better performance
+    return querySnapshot.docs
+      .map(doc => convertFirestoreJob(doc.id, doc.data()))
+      .filter(job => job.status === 'accepted' || job.status === 'onsite');
   } catch (error) {
     console.error('Error fetching user jobs:', error);
     throw error;
@@ -276,13 +276,18 @@ export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 
 
 // Instead of individual reads for push tokens
 export const batchGetPushTokens = async (userIds: string[]): Promise<string[]> => {
-  // Use 'in' query to get multiple tokens in one read
-  const q = query(
-    collection(db, 'notificationTokens'),
-    where('userId', 'in', userIds.slice(0, 10)) // Firestore limit
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => doc.data().token);
+  try {
+    const tokensSnapshot = await getDocs(
+      collection(db, 'notificationTokens'),
+    );
+    
+    return tokensSnapshot.docs
+      .map(doc => doc.data().token)
+      .filter(token => token && token.length > 0);
+  } catch (error) {
+    console.error('Error fetching push tokens:', error);
+    return [];
+  }
 };
 
 export const getOpenJobsPaginated = async (pageSize = 20, lastDoc?: any) => {

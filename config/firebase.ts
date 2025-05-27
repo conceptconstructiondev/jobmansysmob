@@ -1,13 +1,13 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { addDoc, collection, deleteDoc, doc, getFirestore, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getFirestore, setDoc, Timestamp } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-// Your Firebase configuration
+// Better approach with environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyDbcMR5umfRcimDiTeoXzV7_FMoYO6RbWk",
-  authDomain: "conceptjobapp-bebb9.firebaseapp.com",
-  projectId: "conceptjobapp-bebb9",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyDbcMR5umfRcimDiTeoXzV7_FMoYO6RbWk",
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "conceptjobapp-bebb9.firebaseapp.com",
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "conceptjobapp-bebb9",
   storageBucket: "conceptjobapp-bebb9.firebasestorage.app",
   messagingSenderId: "300633467159",
   appId: "1:300633467159:web:22a09686f2ede1a9492f52",
@@ -28,7 +28,7 @@ export async function saveNotificationToken(userId: string, token: string) {
     await setDoc(doc(db, 'notificationTokens', userId), {
       token,
       userId,
-      updatedAt: new Date(),
+      updatedAt: Timestamp.now(),
       platform: 'expo'
     });
     console.log('Notification token saved successfully');
@@ -55,7 +55,7 @@ export async function logNotification(userId: string, title: string, body: strin
       title,
       body,
       data,
-      sentAt: new Date(),
+      sentAt: Timestamp.now(),
       platform: 'expo'
     });
   } catch (error) {

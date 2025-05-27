@@ -1,17 +1,12 @@
-import { auth, removeNotificationToken, saveNotificationToken } from '@/config/firebase';
+import { supabase } from '@/config/supabase';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
-import {
-    User,
-    createUserWithEmailAndPassword,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    signOut,
-    updateProfile
-} from 'firebase/auth';
+import { removeNotificationToken, saveNotificationToken } from '@/services/supabaseService';
+import { Session, User } from '@supabase/supabase-js';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
@@ -23,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
@@ -32,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       registerForPushNotificationsAsync().then(token => {
         if (token) {
           setExpoPushToken(token);
-          saveNotificationToken(user.uid, token).catch(error => {
+          saveNotificationToken(user.id, token).catch(error => {
             console.error('Failed to save notification token:', error);
           });
         }
@@ -41,41 +37,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, expoPushToken]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('Auth state changed:', user?.email || 'No user');
-      setUser(user);
-      setLoading(false);
-      
-      // Clear token when user signs out
-      if (!user) {
-        setExpoPushToken(null);
-      }
-    }, (error) => {
-      console.error('Auth state change error:', error);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    return unsubscribe;
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('Auth state changed:', session?.user?.email || 'No user');
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+      
+      // Clear token when user signs out
+      if (!session?.user) {
+        setExpoPushToken(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Sign in successful:', result.user.email);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      
+      if (error) throw error;
+      console.log('Sign in successful');
     } catch (error: any) {
       console.error('Sign in error:', error);
-      throw new Error(getAuthErrorMessage(error.code));
+      throw new Error(getAuthErrorMessage(error.message));
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(result.user, { displayName: name });
-      console.log('Sign up successful:', result.user.email);
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: name,
+          }
+        }
+      });
+      
+      if (error) throw error;
+      console.log('Sign up successful');
     } catch (error: any) {
       console.error('Sign up error:', error);
-      throw new Error(getAuthErrorMessage(error.code));
+      throw new Error(getAuthErrorMessage(error.message));
     }
   };
 
@@ -85,14 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Remove notification token before signing out
       if (user) {
-        await removeNotificationToken(user.uid).catch(error => {
+        await removeNotificationToken(user.id).catch(error => {
           console.error('Failed to remove notification token:', error);
         });
       }
       
-      await signOut(auth);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
       console.log('Sign out successful');
-      // The onAuthStateChanged listener will automatically update the user state
     } catch (error: any) {
       console.error('Sign out error:', error);
       throw new Error('Failed to sign out. Please try again.');
@@ -100,29 +117,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, expoPushToken }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, logout, expoPushToken }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-function getAuthErrorMessage(errorCode: string): string {
-  switch (errorCode) {
-    case 'auth/user-not-found':
-      return 'No account found with this email address.';
-    case 'auth/wrong-password':
-      return 'Incorrect password.';
-    case 'auth/email-already-in-use':
-      return 'An account with this email already exists.';
-    case 'auth/weak-password':
-      return 'Password should be at least 6 characters.';
-    case 'auth/invalid-email':
-      return 'Invalid email address.';
-    case 'auth/too-many-requests':
-      return 'Too many failed attempts. Please try again later.';
-    default:
-      return 'Authentication failed. Please try again.';
+function getAuthErrorMessage(errorMessage: string): string {
+  if (errorMessage.includes('Invalid login credentials')) {
+    return 'Invalid email or password.';
   }
+  if (errorMessage.includes('User already registered')) {
+    return 'An account with this email already exists.';
+  }
+  if (errorMessage.includes('Password should be at least')) {
+    return 'Password should be at least 6 characters.';
+  }
+  if (errorMessage.includes('Invalid email')) {
+    return 'Invalid email address.';
+  }
+  return 'Authentication failed. Please try again.';
 }
 
 export function useAuth() {
