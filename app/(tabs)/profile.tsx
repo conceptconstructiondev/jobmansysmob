@@ -1,16 +1,32 @@
 import { ThemedView } from '@/components/ThemedView';
 import { UserProfile } from '@/components/UserProfile';
-import { ScrollView, StyleSheet } from 'react-native';
+import { registerForPushNotificationsAsync } from '@/constants/Notifications';
+import * as Notifications from 'expo-notifications';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 export default function ProfileScreen() {
   
+  const testNotification = async () => {
+    const token = await registerForPushNotificationsAsync();
+    console.log('Push token:', token);
+    
+    // Test local notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Test Notification",
+        body: "This is a test notification!",
+      },
+      trigger: { seconds: 1 },
+    });
+  };
 
   return (
     <ThemedView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <UserProfile />
-        
-    
+        <TouchableOpacity style={styles.testButton} onPress={testNotification}>
+          <ThemedText style={styles.testButtonText}>Test Notifications</ThemedText>
+        </TouchableOpacity>
       </ScrollView>
     </ThemedView>
   );

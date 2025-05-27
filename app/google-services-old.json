@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "300633467159",
+    "project_id": "conceptjobapp-bebb9",
+    "storage_bucket": "conceptjobapp-bebb9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:300633467159:android:8484176c32ce1bf1492f52",
+        "android_client_info": {
+          "package_name": "com.conceptapp.contractorapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzQDpMnxGFKZRkV32rT_GDwdDDEB9Q7TI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

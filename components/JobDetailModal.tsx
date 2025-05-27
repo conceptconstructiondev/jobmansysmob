@@ -5,7 +5,7 @@ import { Job } from '@/constants/JobsData';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Alert, Image, Modal, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 interface JobDetailModalProps {
   visible: boolean;
@@ -177,7 +177,11 @@ export function JobDetailModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <ThemedView style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
         <ThemedView style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={resetModal}>
             <IconSymbol name="chevron.left" size={20} color="#4ECDC4" />
@@ -187,142 +191,148 @@ export function JobDetailModal({
           <ThemedView style={styles.headerSpacer} />
         </ThemedView>
 
-        <ThemedView style={styles.content}>
-          <ThemedView style={styles.jobHeader}>
-            <ThemedText type="title" style={styles.jobTitle}>{job.title}</ThemedText>
-            <ThemedView style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
-              <ThemedText style={styles.statusText}>{job.status}</ThemedText>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ThemedView style={styles.content}>
+            <ThemedView style={styles.jobHeader}>
+              <ThemedText type="title" style={styles.jobTitle}>{job.title}</ThemedText>
+              <ThemedView style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
+                <ThemedText style={styles.statusText}>{job.status}</ThemedText>
+              </ThemedView>
             </ThemedView>
+            
+            <ThemedText style={styles.company}>{job.company}</ThemedText>
+            <ThemedText style={styles.description}>{job.description}</ThemedText>
+
+            {job.status === 'accepted' && (
+              <ThemedView style={styles.actionSection}>
+                <ThemedText type="subtitle" style={styles.sectionTitle}>Mark as On-Site</ThemedText>
+                <ThemedText style={styles.instructions}>Add notes about work started. Photo is optional.</ThemedText>
+                
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter work start notes..."
+                  multiline
+                  numberOfLines={4}
+                  value={notes}
+                  onChangeText={setNotes}
+                />
+                
+                <TouchableOpacity 
+                  style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
+                  onPress={showPhotoOptions}
+                  disabled={isProcessingImage}
+                >
+                  <IconSymbol name="camera" size={20} color="white" />
+                  <ThemedText style={styles.photoButtonText}>
+                    {isProcessingImage 
+                      ? 'Processing Image...' 
+                      : capturedPhoto 
+                        ? 'Change Photo' 
+                        : 'Add Photo'
+                    }
+                  </ThemedText>
+                </TouchableOpacity>
+
+                {capturedPhoto && (
+                  <ThemedView style={styles.photoPreview}>
+                    <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+                    <TouchableOpacity 
+                      style={styles.removePhotoButton} 
+                      onPress={() => setCapturedPhoto(null)}
+                    >
+                      <ThemedText style={styles.removePhotoText}>Remove</ThemedText>
+                    </TouchableOpacity>
+                  </ThemedView>
+                )}
+
+                <TouchableOpacity 
+                  style={[styles.actionButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
+                  onPress={handleMarkOnSite}
+                  disabled={!notes.trim() || isProcessingImage}
+                >
+                  <ThemedText style={styles.actionButtonText}>Mark On-Site</ThemedText>
+                </TouchableOpacity>
+              </ThemedView>
+            )}
+
+            {job.status === 'onsite' && (
+              <ThemedView style={styles.actionSection}>
+                <ThemedText type="subtitle" style={styles.sectionTitle}>Complete Job</ThemedText>
+                <ThemedText style={styles.instructions}>Add final notes about work completed. Photo is optional.</ThemedText>
+                
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter completion notes..."
+                  multiline
+                  numberOfLines={4}
+                  value={notes}
+                  onChangeText={setNotes}
+                />
+                
+                <TouchableOpacity 
+                  style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
+                  onPress={showPhotoOptions}
+                  disabled={isProcessingImage}
+                >
+                  <IconSymbol name="camera" size={20} color="white" />
+                  <ThemedText style={styles.photoButtonText}>
+                    {isProcessingImage 
+                      ? 'Processing Image...' 
+                      : capturedPhoto 
+                        ? 'Change Photo' 
+                        : 'Add Completion Photo'
+                    }
+                  </ThemedText>
+                </TouchableOpacity>
+
+                {capturedPhoto && (
+                  <ThemedView style={styles.photoPreview}>
+                    <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+                    <TouchableOpacity 
+                      style={styles.removePhotoButton} 
+                      onPress={() => setCapturedPhoto(null)}
+                    >
+                      <ThemedText style={styles.removePhotoText}>Remove</ThemedText>
+                    </TouchableOpacity>
+                  </ThemedView>
+                )}
+
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.completeButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
+                  onPress={handleComplete}
+                  disabled={!notes.trim() || isProcessingImage}
+                >
+                  <ThemedText style={styles.actionButtonText}>Complete Job</ThemedText>
+                </TouchableOpacity>
+              </ThemedView>
+            )}
+
+            {job.workStartedImage && (
+              <ThemedView style={styles.noteSection}>
+                <ThemedText type="subtitle">Work Started:</ThemedText>
+                <Image source={{ uri: job.workStartedImage }} style={styles.existingImage} />
+                {job.workStartedNotes && (
+                  <ThemedText style={styles.noteText}>{job.workStartedNotes}</ThemedText>
+                )}
+              </ThemedView>
+            )}
+
+            {job.workCompletedImage && (
+              <ThemedView style={styles.noteSection}>
+                <ThemedText type="subtitle">Work Completed:</ThemedText>
+                <Image source={{ uri: job.workCompletedImage }} style={styles.existingImage} />
+                {job.workCompletedNotes && (
+                  <ThemedText style={styles.noteText}>{job.workCompletedNotes}</ThemedText>
+                )}
+              </ThemedView>
+            )}
           </ThemedView>
-          
-          <ThemedText style={styles.company}>{job.company}</ThemedText>
-          <ThemedText style={styles.description}>{job.description}</ThemedText>
-
-          {job.status === 'accepted' && (
-            <ThemedView style={styles.actionSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Mark as On-Site</ThemedText>
-              <ThemedText style={styles.instructions}>Add notes about work started. Photo is optional.</ThemedText>
-              
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter work start notes..."
-                multiline
-                numberOfLines={4}
-                value={notes}
-                onChangeText={setNotes}
-              />
-              
-              <TouchableOpacity 
-                style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
-                onPress={showPhotoOptions}
-                disabled={isProcessingImage}
-              >
-                <IconSymbol name="camera" size={20} color="white" />
-                <ThemedText style={styles.photoButtonText}>
-                  {isProcessingImage 
-                    ? 'Processing Image...' 
-                    : capturedPhoto 
-                      ? 'Change Photo' 
-                      : 'Add Photo'
-                  }
-                </ThemedText>
-              </TouchableOpacity>
-
-              {capturedPhoto && (
-                <ThemedView style={styles.photoPreview}>
-                  <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
-                  <TouchableOpacity 
-                    style={styles.removePhotoButton} 
-                    onPress={() => setCapturedPhoto(null)}
-                  >
-                    <ThemedText style={styles.removePhotoText}>Remove</ThemedText>
-                  </TouchableOpacity>
-                </ThemedView>
-              )}
-
-              <TouchableOpacity 
-                style={[styles.actionButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
-                onPress={handleMarkOnSite}
-                disabled={!notes.trim() || isProcessingImage}
-              >
-                <ThemedText style={styles.actionButtonText}>Mark On-Site</ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          )}
-
-          {job.status === 'onsite' && (
-            <ThemedView style={styles.actionSection}>
-              <ThemedText type="subtitle" style={styles.sectionTitle}>Complete Job</ThemedText>
-              <ThemedText style={styles.instructions}>Add final notes about work completed. Photo is optional.</ThemedText>
-              
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter completion notes..."
-                multiline
-                numberOfLines={4}
-                value={notes}
-                onChangeText={setNotes}
-              />
-              
-              <TouchableOpacity 
-                style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
-                onPress={showPhotoOptions}
-                disabled={isProcessingImage}
-              >
-                <IconSymbol name="camera" size={20} color="white" />
-                <ThemedText style={styles.photoButtonText}>
-                  {isProcessingImage 
-                    ? 'Processing Image...' 
-                    : capturedPhoto 
-                      ? 'Change Photo' 
-                      : 'Add Completion Photo'
-                  }
-                </ThemedText>
-              </TouchableOpacity>
-
-              {capturedPhoto && (
-                <ThemedView style={styles.photoPreview}>
-                  <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
-                  <TouchableOpacity 
-                    style={styles.removePhotoButton} 
-                    onPress={() => setCapturedPhoto(null)}
-                  >
-                    <ThemedText style={styles.removePhotoText}>Remove</ThemedText>
-                  </TouchableOpacity>
-                </ThemedView>
-              )}
-
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.completeButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
-                onPress={handleComplete}
-                disabled={!notes.trim() || isProcessingImage}
-              >
-                <ThemedText style={styles.actionButtonText}>Complete Job</ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          )}
-
-          {job.workStartedImage && (
-            <ThemedView style={styles.noteSection}>
-              <ThemedText type="subtitle">Work Started:</ThemedText>
-              <Image source={{ uri: job.workStartedImage }} style={styles.existingImage} />
-              {job.workStartedNotes && (
-                <ThemedText style={styles.noteText}>{job.workStartedNotes}</ThemedText>
-              )}
-            </ThemedView>
-          )}
-
-          {job.workCompletedImage && (
-            <ThemedView style={styles.noteSection}>
-              <ThemedText type="subtitle">Work Completed:</ThemedText>
-              <Image source={{ uri: job.workCompletedImage }} style={styles.existingImage} />
-              {job.workCompletedNotes && (
-                <ThemedText style={styles.noteText}>{job.workCompletedNotes}</ThemedText>
-              )}
-            </ThemedView>
-          )}
-        </ThemedView>
-      </ThemedView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -485,5 +495,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     opacity: 0.7,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
   },
 }); 

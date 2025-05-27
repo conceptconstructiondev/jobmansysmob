@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { JobDetailModal } from '@/components/JobDetailModal';
 import { ThemedText } from '@/components/ThemedText';
@@ -60,6 +61,7 @@ function JobCard({ job, onPress }: JobCardProps) {
 export default function HomeScreen() {
   const { userJobs, userJobsLoading, markOnSite, completeJob } = useJobs();
   const [selectedJob, setSelectedJob] = useState<(Job & { id: string }) | null>(null);
+  const insets = useSafeAreaInsets();
 
   if (userJobsLoading) {
     return (
@@ -72,7 +74,10 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      >
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">My Jobs</ThemedText>
           <ThemedText style={styles.subtitle}>Active jobs assigned to you</ThemedText>

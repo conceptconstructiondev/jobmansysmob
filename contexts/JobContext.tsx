@@ -34,8 +34,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [isOpenJobsTabActive, setIsOpenJobsTabActive] = useState(false);
   const [isUserJobsTabActive, setIsUserJobsTabActive] = useState(false);
 
+  // Subscribe to open jobs only AFTER user is authenticated
   useEffect(() => {
-    console.log('Setting up open jobs subscription...');
+    if (!user) {
+      console.log('No user authenticated, clearing open jobs');
+      setOpenJobs([]);
+      setOpenJobsLoading(false);
+      return;
+    }
+
+    console.log('User authenticated, setting up open jobs subscription...');
     
     const unsubscribe = subscribeToOpenJobs((jobs) => {
       console.log('Open jobs updated:', jobs.length, 'jobs');
@@ -47,7 +55,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       console.log('Cleaning up open jobs subscription');
       unsubscribe();
     };
-  }, []); // Remove the isOpenJobsTabActive dependency
+  }, [user]); // Now depends on user authentication
 
   // Subscribe to user's jobs (for "My Jobs" tab)
   useEffect(() => {
@@ -71,6 +79,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
       unsubscribe();
     };
   }, [user]);
+
+  useEffect(() => {
+    console.log('=== JOBS DEBUG ===');
+    console.log('Open jobs count:', openJobs.length);
+    console.log('User jobs count:', userJobs.length);
+    console.log('User email:', user?.email);
+    console.log('Loading states:', { openJobsLoading, userJobsLoading });
+  }, [openJobs, userJobs, user, openJobsLoading, userJobsLoading]);
 
   const acceptJob = async (jobId: string) => {
     if (!user) {
