@@ -186,13 +186,19 @@ export const acceptJob = async (jobId: string, userEmail: string, userName: stri
 export const markJobOnSite = async (jobId: string, photo: string, notes: string): Promise<void> => {
   try {
     const jobRef = doc(db, JOBS_COLLECTION, jobId);
-    await updateDoc(jobRef, {
+    const updateData: any = {
       status: 'onsite' as const,
       onsiteTime: Timestamp.now(),
-      workStartedImage: photo,
       workStartedNotes: notes,
       updatedAt: Timestamp.now()
-    });
+    };
+    
+    // Only add photo if provided
+    if (photo && photo.trim()) {
+      updateData.workStartedImage = photo;
+    }
+    
+    await updateDoc(jobRef, updateData);
   } catch (error) {
     console.error('Error marking job on-site:', error);
     throw error;
@@ -203,13 +209,19 @@ export const markJobOnSite = async (jobId: string, photo: string, notes: string)
 export const completeJob = async (jobId: string, photo: string, notes: string): Promise<void> => {
   try {
     const jobRef = doc(db, JOBS_COLLECTION, jobId);
-    await updateDoc(jobRef, {
+    const updateData: any = {
       status: 'completed' as const,
       completedTime: Timestamp.now(),
-      workCompletedImage: photo,
       workCompletedNotes: notes,
       updatedAt: Timestamp.now()
-    });
+    };
+    
+    // Only add photo if provided
+    if (photo && photo.trim()) {
+      updateData.workCompletedImage = photo;
+    }
+    
+    await updateDoc(jobRef, updateData);
   } catch (error) {
     console.error('Error completing job:', error);
     throw error;

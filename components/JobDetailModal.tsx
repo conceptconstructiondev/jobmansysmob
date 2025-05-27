@@ -2,43 +2,78 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Job } from '@/constants/JobsData';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, Modal, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 interface JobDetailModalProps {
   visible: boolean;
-  job: Job | null;
-  jobIndex: number;
+  job: (Job & { id: string }) | null;
   onClose: () => void;
-  onMarkOnSite: (jobIndex: number, photo: string, notes: string) => void;
-  onComplete: (jobIndex: number, photo: string, notes: string) => void;
+  onMarkOnSite: (jobId: string, photo: string, notes: string) => Promise<void>;
+  onComplete: (jobId: string, photo: string, notes: string) => Promise<void>;
 }
 
 export function JobDetailModal({ 
   visible, 
   job, 
-  jobIndex, 
   onClose, 
   onMarkOnSite, 
   onComplete 
 }: JobDetailModalProps) {
   const [notes, setNotes] = useState('');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   if (!job) return null;
 
+  const compressImage = async (uri: string): Promise<string> => {
+    try {
+      setIsProcessingImage(true);
+      
+      // Use the new ImageManipulator API
+      const context = ImageManipulator.manipulate(uri);
+      
+      // Resize to max width of 1024px while maintaining aspect ratio
+      context.resize({ width: 1024 });
+      
+      // Render the manipulated image
+      const image = await context.renderAsync();
+      
+      // Save with compression
+      const result = await image.saveAsync({
+        compress: 0.5,
+        format: SaveFormat.JPEG,
+      });
+      
+      console.log('Image compressed successfully');
+      return result.uri;
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      // Return original URI if compression fails
+      return uri;
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
   const requestCameraPermissions = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Camera permission is required to take photos.',
-        [{ text: 'OK' }]
-      );
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Camera permission is required to take photos.',
+          [{ text: 'OK' }]
+        );
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.log('Camera permissions not available:', error);
       return false;
     }
-    return true;
   };
 
   const takePhoto = async () => {
@@ -54,7 +89,9 @@ export function JobDetailModal({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setCapturedPhoto(result.assets[0].uri);
+        // Compress the image before setting it
+        const compressedUri = await compressImage(result.assets[0].uri);
+        setCapturedPhoto(compressedUri);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take photo. Please try again.');
@@ -72,7 +109,9 @@ export function JobDetailModal({
       });
 
       if (!result.canceled && result.assets[0]) {
-        setCapturedPhoto(result.assets[0].uri);
+        // Compress the image before setting it
+        const compressedUri = await compressImage(result.assets[0].uri);
+        setCapturedPhoto(compressedUri);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to select photo. Please try again.');
@@ -98,12 +137,9 @@ export function JobDetailModal({
       return;
     }
     
-    if (!capturedPhoto) {
-      Alert.alert('Error', 'Please take a photo to mark on-site');
-      return;
-    }
+    const photoUrl = capturedPhoto || '';
     
-    onMarkOnSite(jobIndex, capturedPhoto, notes);
+    onMarkOnSite(job.id, photoUrl, notes);
     setNotes('');
     setCapturedPhoto(null);
     onClose();
@@ -115,12 +151,9 @@ export function JobDetailModal({
       return;
     }
     
-    if (!capturedPhoto) {
-      Alert.alert('Error', 'Please take a completion photo');
-      return;
-    }
+    const photoUrl = capturedPhoto || '';
     
-    onComplete(jobIndex, capturedPhoto, notes);
+    onComplete(job.id, photoUrl, notes);
     setNotes('');
     setCapturedPhoto(null);
     onClose();
@@ -146,29 +179,29 @@ export function JobDetailModal({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <TouchableOpacity onPress={resetModal} style={styles.backButton}>
-            <IconSymbol name="chevron.left" size={24} color="#4ECDC4" />
+          <TouchableOpacity style={styles.backButton} onPress={resetModal}>
+            <IconSymbol name="chevron.left" size={20} color="#4ECDC4" />
             <ThemedText style={styles.backText}>Back</ThemedText>
           </TouchableOpacity>
-          <ThemedText type="title" style={styles.title}>Job Details</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>Job Details</ThemedText>
           <ThemedView style={styles.headerSpacer} />
         </ThemedView>
 
         <ThemedView style={styles.content}>
           <ThemedView style={styles.jobHeader}>
-            <ThemedText type="subtitle" style={styles.jobTitle}>{job.title}</ThemedText>
+            <ThemedText type="title" style={styles.jobTitle}>{job.title}</ThemedText>
             <ThemedView style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
               <ThemedText style={styles.statusText}>{job.status}</ThemedText>
             </ThemedView>
           </ThemedView>
-
+          
           <ThemedText style={styles.company}>{job.company}</ThemedText>
           <ThemedText style={styles.description}>{job.description}</ThemedText>
 
           {job.status === 'accepted' && (
             <ThemedView style={styles.actionSection}>
               <ThemedText type="subtitle" style={styles.sectionTitle}>Mark as On-Site</ThemedText>
-              <ThemedText style={styles.instructions}>Take a photo and add notes about work started</ThemedText>
+              <ThemedText style={styles.instructions}>Add notes about work started. Photo is optional.</ThemedText>
               
               <TextInput
                 style={styles.textInput}
@@ -179,10 +212,19 @@ export function JobDetailModal({
                 onChangeText={setNotes}
               />
               
-              <TouchableOpacity style={styles.photoButton} onPress={showPhotoOptions}>
-                <IconSymbol name="chevron.left.forwardslash.chevron.right" size={20} color="white" />
+              <TouchableOpacity 
+                style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
+                onPress={showPhotoOptions}
+                disabled={isProcessingImage}
+              >
+                <IconSymbol name="camera" size={20} color="white" />
                 <ThemedText style={styles.photoButtonText}>
-                  {capturedPhoto ? 'Change Photo' : 'Take Photo'}
+                  {isProcessingImage 
+                    ? 'Processing Image...' 
+                    : capturedPhoto 
+                      ? 'Change Photo' 
+                      : 'Add Photo'
+                  }
                 </ThemedText>
               </TouchableOpacity>
 
@@ -199,9 +241,9 @@ export function JobDetailModal({
               )}
 
               <TouchableOpacity 
-                style={[styles.actionButton, !capturedPhoto && styles.disabledButton]} 
+                style={[styles.actionButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
                 onPress={handleMarkOnSite}
-                disabled={!capturedPhoto}
+                disabled={!notes.trim() || isProcessingImage}
               >
                 <ThemedText style={styles.actionButtonText}>Mark On-Site</ThemedText>
               </TouchableOpacity>
@@ -211,7 +253,7 @@ export function JobDetailModal({
           {job.status === 'onsite' && (
             <ThemedView style={styles.actionSection}>
               <ThemedText type="subtitle" style={styles.sectionTitle}>Complete Job</ThemedText>
-              <ThemedText style={styles.instructions}>Take a completion photo and add final notes</ThemedText>
+              <ThemedText style={styles.instructions}>Add final notes about work completed. Photo is optional.</ThemedText>
               
               <TextInput
                 style={styles.textInput}
@@ -222,10 +264,19 @@ export function JobDetailModal({
                 onChangeText={setNotes}
               />
               
-              <TouchableOpacity style={styles.photoButton} onPress={showPhotoOptions}>
-                <IconSymbol name="chevron.left.forwardslash.chevron.right" size={20} color="white" />
+              <TouchableOpacity 
+                style={[styles.photoButton, isProcessingImage && styles.disabledButton]} 
+                onPress={showPhotoOptions}
+                disabled={isProcessingImage}
+              >
+                <IconSymbol name="camera" size={20} color="white" />
                 <ThemedText style={styles.photoButtonText}>
-                  {capturedPhoto ? 'Change Photo' : 'Take Completion Photo'}
+                  {isProcessingImage 
+                    ? 'Processing Image...' 
+                    : capturedPhoto 
+                      ? 'Change Photo' 
+                      : 'Add Completion Photo'
+                  }
                 </ThemedText>
               </TouchableOpacity>
 
@@ -242,9 +293,9 @@ export function JobDetailModal({
               )}
 
               <TouchableOpacity 
-                style={[styles.actionButton, styles.completeButton, !capturedPhoto && styles.disabledButton]} 
+                style={[styles.actionButton, styles.completeButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
                 onPress={handleComplete}
-                disabled={!capturedPhoto}
+                disabled={!notes.trim() || isProcessingImage}
               >
                 <ThemedText style={styles.actionButtonText}>Complete Job</ThemedText>
               </TouchableOpacity>
@@ -304,7 +355,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSpacer: {
-    width: 60, // Same width as back button to center the title
+    width: 60,
   },
   content: {
     flex: 1,

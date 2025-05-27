@@ -9,23 +9,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSCameraUsageDescription": "This app needs access to camera to take photos of work progress.",
-        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select existing photos."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true,
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
@@ -60,9 +51,6 @@
         "projectId": "a982f974-2c28-43d8-a920-f7ba93ee57be"
       }
     },
-    "owner": "conceptapp",
-    "notification": {
-      "vapidPublicKey": "YOUR_VAPID_PUBLIC_KEY_HERE"
-    }
+    "owner": "conceptapp"
   }
 }
