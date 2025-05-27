@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { getAllPushTokens } from './supabaseService';
+import { getAllPushTokens } from './jobService';
 
 // Configure notification behavior (from official docs)
 Notifications.setNotificationHandler({

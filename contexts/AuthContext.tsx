@@ -1,6 +1,6 @@
 import { supabase } from '@/config/supabase';
+import { removeNotificationToken, saveNotificationToken } from '@/services/jobService';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
-import { removeNotificationToken, saveNotificationToken } from '@/services/supabaseService';
 import { Session, User } from '@supabase/supabase-js';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 

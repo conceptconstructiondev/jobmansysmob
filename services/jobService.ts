@@ -1,310 +1,281 @@
-import { db } from '@/config/firebase';
+import { supabase } from '@/config/supabase';
 import { Job } from '@/constants/JobsData';
 import { notifyNewJob } from '@/services/notificationService';
-import {
-  addDoc,
-  collection,
-  doc,
-  DocumentData,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  startAfter,
-  Timestamp,
-  updateDoc,
-  where
-} from 'firebase/firestore';
 
-const JOBS_COLLECTION = 'jobs';
-
-// Define Firestore job type
-interface FirestoreJob {
-  title: string;
-  description: string;
-  company: string;
-  status: 'open' | 'accepted' | 'onsite' | 'completed';
-  acceptedBy: string | null;
-  acceptedByName: string | null;
-  acceptedAt: Timestamp | null;
-  invoiced: boolean;
-  onsiteTime: Timestamp | null;
-  completedTime: Timestamp | null;
-  workStartedImage?: string;
-  workStartedNotes?: string;
-  workCompletedImage?: string;
-  workCompletedNotes?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
-
-// Convert Firestore document to app format
-const convertFirestoreJob = (docId: string, data: DocumentData): Job & { id: string } => {
-  const firestoreJob = data as FirestoreJob;
-  return {
-    id: docId,
-    title: firestoreJob.title,
-    description: firestoreJob.description,
-    company: firestoreJob.company,
-    status: firestoreJob.status,
-    acceptedBy: firestoreJob.acceptedBy,
-    invoiced: firestoreJob.invoiced,
-    onsiteTime: firestoreJob.onsiteTime?.toDate().toISOString() || null,
-    completedTime: firestoreJob.completedTime?.toDate().toISOString() || null,
-    workStartedImage: firestoreJob.workStartedImage,
-    workStartedNotes: firestoreJob.workStartedNotes,
-    workCompletedImage: firestoreJob.workCompletedImage,
-    workCompletedNotes: firestoreJob.workCompletedNotes,
-  };
-};
-
-// Get only OPEN jobs (for "All Jobs" tab)
+// Job service functions using Supabase
 export const getOpenJobs = async (): Promise<(Job & { id: string })[]> => {
   try {
-    const jobsRef = collection(db, JOBS_COLLECTION);
-    const q = query(
-      jobsRef, 
-      where('status', '==', 'open'),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(doc => 
-      convertFirestoreJob(doc.id, doc.data())
-    );
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data.map(job => ({
+      id: job.id,
+      title: job.title,
+      description: job.description,
+      company: job.company,
+      status: job.status,
+      acceptedBy: job.accepted_by,
+      invoiced: job.invoiced,
+      onsiteTime: job.onsite_time,
+      completedTime: job.completed_time,
+      workStartedImage: job.work_started_image,
+      workStartedNotes: job.work_started_notes,
+      workCompletedImage: job.work_completed_image,
+      workCompletedNotes: job.work_completed_notes,
+    }));
   } catch (error) {
     console.error('Error fetching open jobs:', error);
     throw error;
   }
 };
 
-// More efficient approach - get user jobs with any status, then filter
 export const getUserJobs = async (userEmail: string): Promise<(Job & { id: string })[]> => {
   try {
-    const jobsRef = collection(db, JOBS_COLLECTION);
-    const q = query(
-      jobsRef,
-      where('acceptedBy', '==', userEmail),
-      orderBy('updatedAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    // Filter in memory for better performance
-    return querySnapshot.docs
-      .map(doc => convertFirestoreJob(doc.id, doc.data()))
-      .filter(job => job.status === 'accepted' || job.status === 'onsite');
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('accepted_by', userEmail)
+      .in('status', ['accepted', 'onsite'])
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    return data.map(job => ({
+      id: job.id,
+      title: job.title,
+      description: job.description,
+      company: job.company,
+      status: job.status,
+      acceptedBy: job.accepted_by,
+      invoiced: job.invoiced,
+      onsiteTime: job.onsite_time,
+      completedTime: job.completed_time,
+      workStartedImage: job.work_started_image,
+      workStartedNotes: job.work_started_notes,
+      workCompletedImage: job.work_completed_image,
+      workCompletedNotes: job.work_completed_notes,
+    }));
   } catch (error) {
     console.error('Error fetching user jobs:', error);
     throw error;
   }
 };
 
-// Real-time listener for OPEN jobs only
-export const subscribeToOpenJobs = (callback: (jobs: (Job & { id: string })[]) => void) => {
-  console.log('Setting up open jobs listener...');
-  
-  const jobsRef = collection(db, JOBS_COLLECTION);
-  const q = query(
-    jobsRef, 
-    where('status', '==', 'open'),
-    orderBy('createdAt', 'desc')
-  );
-  
-  return onSnapshot(q, (querySnapshot) => {
-    console.log('Open jobs snapshot received, docs:', querySnapshot.docs.length);
-    
-    const jobs = querySnapshot.docs.map(doc => {
-      const jobData = convertFirestoreJob(doc.id, doc.data());
-      console.log('Open job:', doc.id, jobData.title, jobData.status);
-      return jobData;
-    });
-    
-    callback(jobs);
-  }, (error) => {
-    console.error('Error in open jobs listener:', error);
-  });
-};
-
-// Real-time listener for USER's jobs only
-export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & { id: string })[]) => void) => {
-  console.log('Setting up user jobs listener for:', userEmail);
-  
-  const jobsRef = collection(db, JOBS_COLLECTION);
-  const q = query(
-    jobsRef,
-    where('acceptedBy', '==', userEmail),
-    where('status', 'in', ['accepted', 'onsite']), // Filter at DB level
-    orderBy('updatedAt', 'desc')
-  );
-  
-  return onSnapshot(q, (querySnapshot) => {
-    console.log('User jobs snapshot received, docs:', querySnapshot.docs.length);
-    
-    const jobs = querySnapshot.docs.map(doc => {
-      const jobData = convertFirestoreJob(doc.id, doc.data());
-      console.log('User job:', doc.id, jobData.title, jobData.status, 'acceptedBy:', jobData.acceptedBy);
-      return jobData;
-    });
-    
-    callback(jobs);
-  }, (error) => {
-    console.error('Error in user jobs listener:', error);
-  });
-};
-
-// Accept a job
-export const acceptJob = async (jobId: string, userEmail: string, userName: string): Promise<void> => {
-  console.log('acceptJob called with:', { jobId, userEmail, userName });
-  
-  try {
-    const jobRef = doc(db, JOBS_COLLECTION, jobId);
-    
-    const updateData = {
-      status: 'accepted' as const,
-      acceptedBy: userEmail,
-      acceptedByName: userName,
-      acceptedAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    };
-    
-    console.log('Updating job with data:', updateData);
-    
-    await updateDoc(jobRef, updateData);
-    
-    console.log('Job update completed successfully');
-    
-  } catch (error) {
-    console.error('Error in acceptJob service:', error);
-    throw error;
-  }
-};
-
-// Mark job as on-site
-export const markJobOnSite = async (jobId: string, photo: string, notes: string): Promise<void> => {
-  try {
-    const jobRef = doc(db, JOBS_COLLECTION, jobId);
-    const updateData: any = {
-      status: 'onsite' as const,
-      onsiteTime: Timestamp.now(),
-      workStartedNotes: notes,
-      updatedAt: Timestamp.now()
-    };
-    
-    // Only add photo if provided
-    if (photo && photo.trim()) {
-      updateData.workStartedImage = photo;
-    }
-    
-    await updateDoc(jobRef, updateData);
-  } catch (error) {
-    console.error('Error marking job on-site:', error);
-    throw error;
-  }
-};
-
-// Complete job
-export const completeJob = async (jobId: string, photo: string, notes: string): Promise<void> => {
-  try {
-    const jobRef = doc(db, JOBS_COLLECTION, jobId);
-    const updateData: any = {
-      status: 'completed' as const,
-      completedTime: Timestamp.now(),
-      workCompletedNotes: notes,
-      updatedAt: Timestamp.now()
-    };
-    
-    // Only add photo if provided
-    if (photo && photo.trim()) {
-      updateData.workCompletedImage = photo;
-    }
-    
-    await updateDoc(jobRef, updateData);
-  } catch (error) {
-    console.error('Error completing job:', error);
-    throw error;
-  }
-};
-
-// Create new job (for testing)
 export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 'acceptedBy'>): Promise<string> => {
   try {
-    const jobsRef = collection(db, JOBS_COLLECTION);
-    
-    // Create the job data object without undefined fields
-    const jobData: any = {
-      title: job.title,
-      description: job.description,
-      company: job.company,
-      status: 'open' as const,
-      acceptedBy: null,
-      acceptedByName: null,
-      acceptedAt: null,
-      invoiced: job.invoiced,
-      onsiteTime: null,
-      completedTime: null,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
-    };
-    
-    // Only add image/notes fields if they exist (don't add undefined)
-    // Remove these lines that set undefined:
-    // workStartedImage: undefined,
-    // workStartedNotes: undefined,
-    // workCompletedImage: undefined,
-    // workCompletedNotes: undefined,
-    
-    const docRef = await addDoc(jobsRef, jobData);
-    
-    console.log('Job created with ID:', docRef.id);
-    
+    const { data, error } = await supabase
+      .from('jobs')
+      .insert({
+        title: job.title,
+        description: job.description,
+        company: job.company,
+        status: 'open',
+        accepted_by: null,
+        accepted_by_name: null,
+        accepted_at: null,
+        invoiced: job.invoiced,
+        onsite_time: null,
+        completed_time: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log('Job created with ID:', data.id);
+
     // Send notification to all users
     try {
-      await notifyNewJob(docRef.id, job.title, job.company);
+      await notifyNewJob(data.id, job.title, job.company);
       console.log('New job notification sent successfully');
     } catch (notificationError) {
       console.error('Failed to send new job notification:', notificationError);
-      // Don't throw here - job creation should succeed even if notification fails
     }
-    
-    return docRef.id;
+
+    return data.id;
   } catch (error) {
     console.error('Error creating job:', error);
     throw error;
   }
 };
 
-// Instead of individual reads for push tokens
-export const batchGetPushTokens = async (userIds: string[]): Promise<string[]> => {
+export const acceptJob = async (jobId: string, userEmail: string, userName: string): Promise<void> => {
   try {
-    const tokensSnapshot = await getDocs(
-      collection(db, 'notificationTokens'),
-    );
-    
-    return tokensSnapshot.docs
-      .map(doc => doc.data().token)
-      .filter(token => token && token.length > 0);
+    const { error } = await supabase
+      .from('jobs')
+      .update({
+        status: 'accepted',
+        accepted_by: userEmail,
+        accepted_by_name: userName,
+        accepted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error accepting job:', error);
+    throw error;
+  }
+};
+
+export const markJobOnSite = async (jobId: string, photo: string, notes: string): Promise<void> => {
+  try {
+    const updateData: any = {
+      status: 'onsite',
+      onsite_time: new Date().toISOString(),
+      work_started_notes: notes,
+      updated_at: new Date().toISOString()
+    };
+
+    if (photo && photo.trim()) {
+      updateData.work_started_image = photo;
+    }
+
+    const { error } = await supabase
+      .from('jobs')
+      .update(updateData)
+      .eq('id', jobId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error marking job on-site:', error);
+    throw error;
+  }
+};
+
+export const completeJob = async (jobId: string, photo: string, notes: string): Promise<void> => {
+  try {
+    const updateData: any = {
+      status: 'completed',
+      completed_time: new Date().toISOString(),
+      work_completed_notes: notes,
+      updated_at: new Date().toISOString()
+    };
+
+    if (photo && photo.trim()) {
+      updateData.work_completed_image = photo;
+    }
+
+    const { error } = await supabase
+      .from('jobs')
+      .update(updateData)
+      .eq('id', jobId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error completing job:', error);
+    throw error;
+  }
+};
+
+// Real-time subscriptions
+export const subscribeToOpenJobs = (callback: (jobs: (Job & { id: string })[]) => void) => {
+  console.log('Setting up open jobs listener...');
+  
+  const subscription = supabase
+    .channel('open-jobs')
+    .on('postgres_changes', 
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'jobs',
+        filter: 'status=eq.open'
+      }, 
+      async () => {
+        // Refetch data when changes occur
+        const jobs = await getOpenJobs();
+        callback(jobs);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+};
+
+export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & { id: string })[]) => void) => {
+  console.log('Setting up user jobs listener for:', userEmail);
+  
+  const subscription = supabase
+    .channel('user-jobs')
+    .on('postgres_changes', 
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'jobs',
+        filter: `accepted_by=eq.${userEmail}`
+      }, 
+      async () => {
+        // Refetch data when changes occur
+        const jobs = await getUserJobs(userEmail);
+        callback(jobs);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+};
+
+// Notification token management
+export const saveNotificationToken = async (userId: string, token: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('notification_tokens')
+      .upsert({
+        user_id: userId,
+        token,
+        platform: 'expo',
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) throw error;
+    console.log('Notification token saved successfully');
+  } catch (error) {
+    console.error('Error saving notification token:', error);
+    throw error;
+  }
+};
+
+export const removeNotificationToken = async (userId: string): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('notification_tokens')
+      .delete()
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    console.log('Notification token removed successfully');
+  } catch (error) {
+    console.error('Error removing notification token:', error);
+    throw error;
+  }
+};
+
+export const getAllPushTokens = async (): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('notification_tokens')
+      .select('token');
+
+    if (error) throw error;
+
+    return data.map(row => row.token).filter(token => token && token.length > 0);
   } catch (error) {
     console.error('Error fetching push tokens:', error);
     return [];
   }
 };
 
-export const getOpenJobsPaginated = async (pageSize = 20, lastDoc?: any) => {
-  let q = query(
-    collection(db, 'jobs'),
-    where('status', '==', 'open'),
-    orderBy('createdAt', 'desc'),
-    limit(pageSize)
-  );
-  
-  if (lastDoc) {
-    q = query(q, startAfter(lastDoc));
-  }
-  
-  const snapshot = await getDocs(q);
-  return {
-    jobs: snapshot.docs.map(doc => convertFirestoreJob(doc.id, doc.data())),
-    lastDoc: snapshot.docs[snapshot.docs.length - 1]
-  };
-}; 
+// Legacy function names for compatibility
+export const batchGetPushTokens = getAllPushTokens; 
