@@ -3,6 +3,7 @@ import { removeNotificationToken, saveNotificationToken } from '@/services/jobSe
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
 import { Session, User } from '@supabase/supabase-js';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 interface AuthContextType {
   user: User | null;
@@ -15,6 +16,16 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Tells Supabase Auth to continuously refresh the session automatically
+// if the app is in the foreground
+AppState.addEventListener('change', (state) => {
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh()
+  } else {
+    supabase.auth.stopAutoRefresh()
+  }
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -39,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session?.user?.email || 'No user');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -62,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -72,12 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('Sign in error:', error);
       throw new Error(getAuthErrorMessage(error.message));
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -88,10 +104,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       
       if (error) throw error;
+      
+      // Check if email confirmation is required
+      if (!data.session) {
+        throw new Error('Please check your inbox for email verification!');
+      }
+      
       console.log('Sign up successful');
     } catch (error: any) {
       console.error('Sign up error:', error);
       throw new Error(getAuthErrorMessage(error.message));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -136,7 +160,10 @@ function getAuthErrorMessage(errorMessage: string): string {
   if (errorMessage.includes('Invalid email')) {
     return 'Invalid email address.';
   }
-  return 'Authentication failed. Please try again.';
+  if (errorMessage.includes('Email not confirmed')) {
+    return 'Please check your email and click the confirmation link.';
+  }
+  return errorMessage || 'Authentication failed. Please try again.';
 }
 
 export function useAuth() {
