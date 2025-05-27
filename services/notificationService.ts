@@ -2,7 +2,7 @@ import { db } from '@/config/firebase';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { addDoc, collection, getDocs, query, Timestamp, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
 import { Platform } from 'react-native';
 
 // Configure notification behavior (from official docs)
@@ -82,20 +82,10 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 // Save push token to Firestore
 export async function savePushToken(userId: string, token: string): Promise<void> {
   try {
-    const tokensRef = collection(db, PUSH_TOKENS_COLLECTION);
-    const q = query(tokensRef, where('userId', '==', userId), where('token', '==', token));
-    const querySnapshot = await getDocs(q);
-    
-    if (querySnapshot.empty) {
-      await addDoc(tokensRef, {
-        userId,
-        token,
-        platform: Platform.OS,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      } as PushTokenDoc);
-      
-      console.log('Push token saved for user:', userId);
+    const tokenDocRef = doc(db, 'pushTokens', userId);
+    const tokenDoc = await getDoc(tokenDocRef);
+    if (!tokenDoc.exists()) {
+      await setDoc(tokenDocRef, { token, platform: Platform.OS });
     }
   } catch (error) {
     console.error('Error saving push token:', error);

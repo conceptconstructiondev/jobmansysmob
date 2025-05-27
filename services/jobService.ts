@@ -6,9 +6,11 @@ import {
   doc,
   DocumentData,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
+  startAfter,
   Timestamp,
   updateDoc,
   where
@@ -83,7 +85,7 @@ export const getUserJobs = async (userEmail: string): Promise<(Job & { id: strin
     const q = query(
       jobsRef,
       where('acceptedBy', '==', userEmail),
-      where('status', 'in', ['accepted', 'onsite']), // Only active jobs
+      where('status', 'in', ['accepted', 'onsite']), // Filter at DB level
       orderBy('updatedAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
@@ -131,6 +133,7 @@ export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & {
   const q = query(
     jobsRef,
     where('acceptedBy', '==', userEmail),
+    where('status', 'in', ['accepted', 'onsite']), // Filter at DB level
     orderBy('updatedAt', 'desc')
   );
   
@@ -143,13 +146,7 @@ export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & {
       return jobData;
     });
     
-    // Filter in memory for active jobs only
-    const activeJobs = jobs.filter(job => 
-      job.status === 'accepted' || job.status === 'onsite'
-    );
-    
-    console.log('Active user jobs:', activeJobs.length);
-    callback(activeJobs);
+    callback(jobs);
   }, (error) => {
     console.error('Error in user jobs listener:', error);
   });
@@ -256,4 +253,34 @@ export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 
     console.error('Error creating job:', error);
     throw error;
   }
+};
+
+// Instead of individual reads for push tokens
+export const batchGetPushTokens = async (userIds: string[]): Promise<string[]> => {
+  // Use 'in' query to get multiple tokens in one read
+  const q = query(
+    collection(db, 'pushTokens'),
+    where('userId', 'in', userIds.slice(0, 10)) // Firestore limit
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data().token);
+};
+
+export const getOpenJobsPaginated = async (pageSize = 20, lastDoc?: any) => {
+  let q = query(
+    collection(db, 'jobs'),
+    where('status', '==', 'open'),
+    orderBy('createdAt', 'desc'),
+    limit(pageSize)
+  );
+  
+  if (lastDoc) {
+    q = query(q, startAfter(lastDoc));
+  }
+  
+  const snapshot = await getDocs(q);
+  return {
+    jobs: snapshot.docs.map(doc => convertFirestoreJob(doc.id, doc.data())),
+    lastDoc: snapshot.docs[snapshot.docs.length - 1]
+  };
 }; 

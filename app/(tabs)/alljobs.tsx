@@ -4,7 +4,8 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Job } from '@/constants/JobsData';
 import { useAuth } from '@/contexts/AuthContext';
 import { useJobs } from '@/contexts/JobContext';
-import React from 'react';
+import { useJobCache } from '@/hooks/useJobCache';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 interface JobCardProps {
@@ -46,6 +47,8 @@ function JobCard({ job, onAccept }: JobCardProps) {
 export default function TabTwoScreen() {
   const { openJobs, openJobsLoading, acceptJob } = useJobs();
   const { user } = useAuth();
+  const { getCachedOpenJobs, cacheOpenJobs } = useJobCache();
+  const [loading, setLoading] = useState(true);
 
   console.log('AllJobs render:', { 
     openJobsCount: openJobs.length, 
@@ -53,6 +56,26 @@ export default function TabTwoScreen() {
     userEmail: user?.email,
     userId: user?.uid 
   });
+
+  useEffect(() => {
+    // Set tab as active to trigger the listener
+    // You'd need to expose setOpenJobsTabActive from JobContext first
+    
+    const loadJobs = async () => {
+      // Try cache first
+      const cached = await getCachedOpenJobs();
+      if (cached) {
+        // Don't set local state, the context will handle this
+        setLoading(false);
+        return;
+      }
+      
+      // The context's real-time listener will handle loading jobs
+      setLoading(false);
+    };
+    
+    loadJobs();
+  }, []);
 
   const handleAcceptJob = async (jobId: string) => {
     console.log('=== ACCEPT JOB START ===');
@@ -77,7 +100,7 @@ export default function TabTwoScreen() {
     }
   };
 
-  if (openJobsLoading) {
+  if (loading) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color="#4ECDC4" />

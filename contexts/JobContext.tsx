@@ -1,11 +1,11 @@
 import { Job } from '@/constants/JobsData';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  acceptJob as acceptJobService,
-  completeJob as completeJobService,
-  markJobOnSite as markJobOnSiteService,
-  subscribeToOpenJobs,
-  subscribeToUserJobs
+    acceptJob as acceptJobService,
+    completeJob as completeJobService,
+    markJobOnSite as markJobOnSiteService,
+    subscribeToOpenJobs,
+    subscribeToUserJobs
 } from '@/services/jobService';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
@@ -17,6 +17,8 @@ interface JobContextType {
   acceptJob: (jobId: string) => Promise<void>;
   markOnSite: (jobId: string, photo: string, notes: string) => Promise<void>;
   completeJob: (jobId: string, photo: string, notes: string) => Promise<void>;
+  setOpenJobsTabActive: (active: boolean) => void;
+  setUserJobsTabActive: (active: boolean) => void;
 }
 
 const JobContext = createContext<JobContextType | undefined>(undefined);
@@ -28,7 +30,10 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [userJobsLoading, setUserJobsLoading] = useState(true);
   const { user } = useAuth();
 
-  // Subscribe to open jobs (for "All Jobs" tab)
+  // Only subscribe when user is actively viewing the tab
+  const [isOpenJobsTabActive, setIsOpenJobsTabActive] = useState(false);
+  const [isUserJobsTabActive, setIsUserJobsTabActive] = useState(false);
+
   useEffect(() => {
     console.log('Setting up open jobs subscription...');
     
@@ -42,7 +47,7 @@ export function JobProvider({ children }: { children: ReactNode }) {
       console.log('Cleaning up open jobs subscription');
       unsubscribe();
     };
-  }, []);
+  }, []); // Remove the isOpenJobsTabActive dependency
 
   // Subscribe to user's jobs (for "My Jobs" tab)
   useEffect(() => {
@@ -110,6 +115,14 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setOpenJobsTabActive = (active: boolean) => {
+    setIsOpenJobsTabActive(active);
+  };
+
+  const setUserJobsTabActive = (active: boolean) => {
+    setIsUserJobsTabActive(active);
+  };
+
   return (
     <JobContext.Provider value={{ 
       openJobs,
@@ -118,7 +131,9 @@ export function JobProvider({ children }: { children: ReactNode }) {
       userJobsLoading,
       acceptJob, 
       markOnSite, 
-      completeJob 
+      completeJob,
+      setOpenJobsTabActive,
+      setUserJobsTabActive
     }}>
       {children}
     </JobContext.Provider>
