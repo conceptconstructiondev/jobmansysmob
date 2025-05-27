@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "test-conceptapp",
-    "slug": "test-conceptapp",
+    "name": "ConceptApp",
+    "slug": "conceptapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

@@ -10,6 +10,8 @@ import { NotificationData } from '@/constants/Notifications';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { JobProvider } from '@/contexts/JobContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { registerForPushNotificationsAsync } from '@/services/notificationService';
+import { saveNotificationToken } from '@/services/supabaseService';
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
@@ -47,10 +49,10 @@ function RootLayoutNav() {
 
     return () => {
       if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
+        notificationListener.current.remove();
       }
       if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+        responseListener.current.remove();
       }
     };
   }, []);
@@ -68,6 +70,20 @@ function RootLayoutNav() {
       }
     }
   }, [user, loading]);
+
+  useEffect(() => {
+    const setupNotifications = async () => {
+      const token = await registerForPushNotificationsAsync();
+      if (token && user) {
+        await saveNotificationToken(user.id, token);
+        console.log('✅ Notification token saved:', token);
+      }
+    };
+    
+    if (user) {
+      setupNotifications();
+    }
+  }, [user]);
 
   if (loading) {
     console.log('Auth is loading...');

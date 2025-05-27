@@ -46,7 +46,7 @@ function JobCard({ job, onAccept }: JobCardProps) {
 }
 
 export default function TabTwoScreen() {
-  const { openJobs, openJobsLoading, acceptJob } = useJobs();
+  const { openJobs, openJobsLoading, acceptJobAction } = useJobs();
   const { user } = useAuth();
   const { getCachedOpenJobs, cacheOpenJobs } = useJobCache();
   const [loading, setLoading] = useState(true);
@@ -89,11 +89,10 @@ export default function TabTwoScreen() {
       return;
     }
 
-    // TEMPORARILY REMOVE ALERT FOR TESTING
     console.log('=== BYPASSING ALERT - ACCEPTING JOB DIRECTLY ===');
     try {
-      console.log('Calling acceptJob with:', jobId);
-      await acceptJob(jobId);
+      console.log('Calling acceptJobAction with:', jobId);
+      await acceptJobAction(jobId);
       console.log('=== JOB ACCEPTED SUCCESSFULLY ===');
       Alert.alert('Success', 'Job accepted successfully!');
     } catch (error) {

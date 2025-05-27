@@ -2,7 +2,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Job } from '@/constants/JobsData';
-import { getSignedImageUrl, uploadImage } from '@/services/imageService';
+import { getSignedImageUrl, testStorageConnection, uploadImage } from '@/services/imageService';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
@@ -32,26 +32,39 @@ export function JobDetailModal({
   const [workStartedImageUrl, setWorkStartedImageUrl] = useState<string | null>(null);
   const [workCompletedImageUrl, setWorkCompletedImageUrl] = useState<string | null>(null);
 
-  if (!job) return null;
-
   // Load signed URLs for existing images
   useEffect(() => {
     const loadImageUrls = async () => {
-      if (job.workStartedImage) {
+      if (job?.workStartedImage) {
         const url = await getSignedImageUrl(job.workStartedImage);
         setWorkStartedImageUrl(url);
       }
       
-      if (job.workCompletedImage) {
+      if (job?.workCompletedImage) {
         const url = await getSignedImageUrl(job.workCompletedImage);
         setWorkCompletedImageUrl(url);
       }
     };
 
-    if (visible) {
+    if (visible && job) {
+      // Test storage connection
+      import('@/services/imageService').then(({ testStorageConnection }) => {
+        testStorageConnection().then(result => {
+          console.log('Storage test result:', result);
+        });
+      });
+      
+      // Debug Supabase connection
+      import('@/services/imageService').then(({ debugSupabaseConnection }) => {
+        debugSupabaseConnection();
+      });
+      
       loadImageUrls();
     }
   }, [job, visible]);
+
+  // Move the early return AFTER all hooks
+  if (!job) return null;
 
   const compressImage = async (uri: string): Promise<string> => {
     try {
@@ -60,15 +73,15 @@ export function JobDetailModal({
       // Use the new ImageManipulator API
       const context = ImageManipulator.manipulate(uri);
       
-      // Resize to max width of 1024px while maintaining aspect ratio
-      context.resize({ width: 1024 });
+      // Resize to smaller width for faster upload
+      context.resize({ width: 512 });
       
       // Render the manipulated image
       const image = await context.renderAsync();
       
-      // Save with compression
+      // Save with higher compression
       const result = await image.saveAsync({
-        compress: 0.5,
+        compress: 0.3,
         format: SaveFormat.JPEG,
       });
       
@@ -107,13 +120,12 @@ export function JobDetailModal({
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets[0]) {
-        // Compress the image before setting it
         const compressedUri = await compressImage(result.assets[0].uri);
         setCapturedPhoto(compressedUri);
       }
@@ -126,13 +138,12 @@ export function JobDetailModal({
   const selectFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets[0]) {
-        // Compress the image before setting it
         const compressedUri = await compressImage(result.assets[0].uri);
         setCapturedPhoto(compressedUri);
       }
@@ -167,6 +178,12 @@ export function JobDetailModal({
       
       // Upload image if one was captured
       if (capturedPhoto) {
+        console.log('Testing storage connection before upload...');
+        const storageOk = await testStorageConnection();
+        if (!storageOk) {
+          throw new Error('Storage connection test failed. Please check your internet connection and try again.');
+        }
+        
         console.log('Uploading work started image...');
         filePath = await uploadImage(capturedPhoto, job.id, 'workStarted');
       }
@@ -178,7 +195,7 @@ export function JobDetailModal({
       
     } catch (error) {
       console.error('Error marking job on-site:', error);
-      Alert.alert('Error', 'Failed to save job update. Please try again.');
+      Alert.alert('Error', `Failed to save job update: ${error.message}`);
     } finally {
       setIsUploading(false);
     }

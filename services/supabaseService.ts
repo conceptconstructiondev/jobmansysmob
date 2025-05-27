@@ -175,73 +175,119 @@ export const completeJob = async (jobId: string, photo: string, notes: string): 
   }
 };
 
-// Real-time subscriptions
+// Enhanced real-time subscriptions with better filtering
 export const subscribeToOpenJobs = (callback: (jobs: (Job & { id: string })[]) => void) => {
-  console.log('Setting up open jobs listener...');
+  console.log('🔄 Setting up open jobs listener...');
   
   const subscription = supabase
-    .channel('open-jobs')
+    .channel('open-jobs-channel')
     .on('postgres_changes', 
       { 
         event: '*', 
         schema: 'public', 
         table: 'jobs',
-        filter: 'status=eq.open'
+        filter: 'status=eq.open' // Only listen to open jobs
       }, 
-      async () => {
-        // Refetch data when changes occur
-        const jobs = await getOpenJobs();
-        callback(jobs);
+      async (payload) => {
+        console.log('📡 Open jobs change detected:', {
+          eventType: payload.eventType,
+          table: payload.table,
+          new: payload.new,
+          old: payload.old
+        });
+        
+        try {
+          // Add a small delay to ensure database consistency
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Refetch data when changes occur
+          const jobs = await getOpenJobs();
+          console.log('✅ Fetched updated open jobs:', jobs.length);
+          callback(jobs);
+        } catch (error) {
+          console.error('❌ Error fetching updated open jobs:', error);
+        }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('📡 Open jobs subscription status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Successfully subscribed to open jobs changes');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('❌ Channel error in open jobs subscription');
+      }
+    });
 
   return () => {
+    console.log('🔌 Unsubscribing from open jobs');
     supabase.removeChannel(subscription);
   };
 };
 
 export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & { id: string })[]) => void) => {
-  console.log('Setting up user jobs listener for:', userEmail);
+  console.log('🔄 Setting up user jobs listener for:', userEmail);
   
   const subscription = supabase
-    .channel('user-jobs')
+    .channel(`user-jobs-${userEmail}`)
     .on('postgres_changes', 
       { 
         event: '*', 
         schema: 'public', 
-        table: 'jobs',
-        filter: `accepted_by=eq.${userEmail}`
+        table: 'jobs'
       }, 
-      async () => {
-        // Refetch data when changes occur
-        const jobs = await getUserJobs(userEmail);
-        callback(jobs);
+      async (payload) => {
+        console.log('📡 User jobs change detected:', payload);
+        try {
+          // Refetch data when changes occur
+          const jobs = await getUserJobs(userEmail);
+          console.log('✅ Fetched updated user jobs:', jobs.length);
+          callback(jobs);
+        } catch (error) {
+          console.error('❌ Error fetching updated user jobs:', error);
+        }
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('📡 User jobs subscription status:', status);
+    });
 
   return () => {
+    console.log('🔌 Unsubscribing from user jobs');
     supabase.removeChannel(subscription);
   };
 };
 
-// Notification token management
+// Enhanced notification token management with debugging
 export const saveNotificationToken = async (userId: string, token: string): Promise<void> => {
   try {
-    const { error } = await supabase
+    console.log('🔄 Attempting to save notification token:', {
+      userId,
+      token: token.substring(0, 20) + '...',
+      platform: 'expo'
+    });
+
+    // Use upsert with conflict resolution
+    const { data, error } = await supabase
       .from('notification_tokens')
       .upsert({
         user_id: userId,
         token,
         platform: 'expo',
         updated_at: new Date().toISOString()
-      });
+      }, {
+        onConflict: 'user_id', // Specify the conflict column
+        ignoreDuplicates: false // Update on conflict
+      })
+      .select();
 
-    if (error) throw error;
-    console.log('Notification token saved successfully');
+    if (error) {
+      console.error('❌ Database error saving notification token:', error);
+      throw error;
+    }
+
+    console.log('✅ Notification token saved successfully:', data);
   } catch (error) {
-    console.error('Error saving notification token:', error);
+    console.error('❌ Error saving notification token:', error);
     throw error;
   }
 };
@@ -263,18 +309,59 @@ export const removeNotificationToken = async (userId: string): Promise<void> => 
 
 export const getAllPushTokens = async (): Promise<string[]> => {
   try {
+    console.log('🔍 Fetching all push tokens...');
+    
     const { data, error } = await supabase
       .from('notification_tokens')
-      .select('token');
+      .select('token, user_id, created_at');
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Error fetching push tokens:', error);
+      throw error;
+    }
 
-    return data.map(row => row.token).filter(token => token && token.length > 0);
+    console.log('📱 Found notification tokens:', {
+      count: data?.length || 0,
+      tokens: data?.map(row => ({
+        userId: row.user_id,
+        tokenPreview: row.token?.substring(0, 20) + '...',
+        createdAt: row.created_at
+      }))
+    });
+
+    return data?.map(row => row.token).filter(token => token && token.length > 0) || [];
   } catch (error) {
-    console.error('Error fetching push tokens:', error);
+    console.error('❌ Error fetching push tokens:', error);
     return [];
   }
 };
 
 // Import notification function
 import { notifyNewJob } from './notificationService';
+
+// Add this debug function
+export const testRealTimeConnection = () => {
+  console.log('🧪 Testing real-time connection...');
+  
+  const testChannel = supabase
+    .channel('test-connection')
+    .on('postgres_changes', 
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'jobs'
+      }, 
+      (payload) => {
+        console.log('🎯 TEST: Real-time event received:', payload);
+      }
+    )
+    .subscribe((status) => {
+      console.log('🔗 Test connection status:', status);
+    });
+
+  // Clean up after 10 seconds
+  setTimeout(() => {
+    supabase.removeChannel(testChannel);
+    console.log('🧹 Test connection cleaned up');
+  }, 10000);
+};

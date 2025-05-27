@@ -59,11 +59,11 @@ function JobCard({ job, onPress }: JobCardProps) {
 }
 
 export default function HomeScreen() {
-  const { userJobs, userJobsLoading, markOnSite, completeJob } = useJobs();
+  const { userJobs, loading, markJobOnSiteAction, completeJobAction } = useJobs();
   const [selectedJob, setSelectedJob] = useState<(Job & { id: string }) | null>(null);
   const insets = useSafeAreaInsets();
 
-  if (userJobsLoading) {
+  if (loading) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color="#4ECDC4" />
@@ -106,8 +106,8 @@ export default function HomeScreen() {
         visible={selectedJob !== null}
         job={selectedJob}
         onClose={() => setSelectedJob(null)}
-        onMarkOnSite={markOnSite}
-        onComplete={completeJob}
+        onMarkOnSite={markJobOnSiteAction}
+        onComplete={completeJobAction}
       />
     </ThemedView>
   );

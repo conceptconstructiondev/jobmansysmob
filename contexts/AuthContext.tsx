@@ -1,6 +1,6 @@
 import { supabase } from '@/config/supabase';
-import { removeNotificationToken, saveNotificationToken } from '@/services/jobService';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
+import { removeNotificationToken, saveNotificationToken } from '@/services/supabaseService';
 import { Session, User } from '@supabase/supabase-js';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
@@ -35,16 +35,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Register for push notifications and save token when user signs in
   useEffect(() => {
-    if (user && !expoPushToken) {
-      registerForPushNotificationsAsync().then(token => {
-        if (token) {
-          setExpoPushToken(token);
-          saveNotificationToken(user.id, token).catch(error => {
-            console.error('Failed to save notification token:', error);
-          });
+    const setupNotifications = async () => {
+      if (user && !expoPushToken) {
+        try {
+          console.log('🔔 Setting up notifications for user:', user.email);
+          
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            console.log('📱 Got push token, saving to database...');
+            setExpoPushToken(token);
+            
+            await saveNotificationToken(user.id, token);
+            console.log('✅ Notification token setup complete');
+          } else {
+            console.log('❌ Failed to get push token');
+          }
+        } catch (error) {
+          console.error('❌ Failed to setup notifications:', error);
         }
-      });
-    }
+      }
+    };
+
+    setupNotifications();
   }, [user, expoPushToken]);
 
   useEffect(() => {

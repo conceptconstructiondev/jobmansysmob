@@ -2,21 +2,21 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { getAllPushTokens } from './jobService';
+import { getAllPushTokens } from './supabaseService';
 
 // Configure notification behavior (from official docs)
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
   }),
 });
 
-// Register for push notifications (using EAS project ID)
+// Register for push notifications (following official Expo pattern)
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  let token = null;
+  let token;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
@@ -41,22 +41,23 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
+    // Learn more about projectId:
+    // https://docs.expo.dev/push-notifications/push-notifications-setup/#configure-projectid
+    // EAS projectId is used here.
     try {
-      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-      
+      const projectId =
+        Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
       if (!projectId) {
         throw new Error('Project ID not found');
       }
-      
-      const pushTokenData = await Notifications.getExpoPushTokenAsync({
-        projectId,
-      });
-      
-      token = pushTokenData.data;
-      console.log('Push token:', token);
-      
+      token = (
+        await Notifications.getExpoPushTokenAsync({
+          projectId,
+        })
+      ).data;
+      console.log('✅ Expo push token obtained:', token);
     } catch (e) {
-      console.error('Error getting push token:', e);
+      console.error('❌ Error getting push token:', e);
       return null;
     }
   } else {
@@ -66,7 +67,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   return token;
 }
 
-// Send push notification using Expo Push Service
+// Rest of your notification service remains the same...
 export async function sendPushNotification(
   tokens: string[],
   title: string,
@@ -102,7 +103,6 @@ export async function sendPushNotification(
   }
 }
 
-// Notify all users of new job
 export async function notifyNewJob(jobId: string, jobTitle: string, company: string): Promise<void> {
   try {
     console.log('🚨 notifyNewJob called with:', { jobId, jobTitle, company });
@@ -147,4 +147,28 @@ export function addNotificationReceivedListener(
 
 export async function getLastNotificationResponse(): Promise<Notifications.NotificationResponse | null> {
   return await Notifications.getLastNotificationResponseAsync();
-} 
+}
+
+const testCompleteLocalFlow = async () => {
+  try {
+    // Test immediate notification
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🚨 New Job Available!",
+        body: "Test Job at Test Company",
+        sound: 'default',
+        data: {
+          type: 'NEW_JOB',
+          jobId: 'test-123',
+          jobTitle: 'Test Job',
+          company: 'Test Company',
+        },
+      },
+      trigger: { seconds: 2 },
+    });
+    
+    console.log('✅ Local notification scheduled');
+  } catch (error) {
+    console.error('❌ Local notification failed:', error);
+  }
+};

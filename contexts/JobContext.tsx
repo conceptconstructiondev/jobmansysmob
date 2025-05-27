@@ -1,3 +1,4 @@
+import { supabase } from '@/config/supabase';
 import { Job } from '@/constants/JobsData';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -30,6 +31,16 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
+  // Debug Supabase client
+  useEffect(() => {
+    console.log('🔍 Supabase client check:', {
+      hasSupabase: !!supabase,
+      hasChannel: !!supabase?.channel,
+      url: process.env.EXPO_PUBLIC_SUPABASE_URL ? 'Set' : 'Missing',
+      key: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? 'Set' : 'Missing'
+    });
+  }, []);
+
   // Load initial data
   useEffect(() => {
     if (user) {
@@ -37,22 +48,29 @@ export function JobProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Set up real-time subscriptions
+  // Set up real-time subscriptions with error handling
   useEffect(() => {
-    if (!user) return;
+    if (!user || !supabase?.channel) {
+      console.log('⚠️ Skipping subscriptions - missing user or supabase client');
+      return;
+    }
 
-    const unsubscribeOpen = subscribeToOpenJobs((jobs) => {
-      setOpenJobs(jobs);
-    });
+    try {
+      const unsubscribeOpen = subscribeToOpenJobs((jobs) => {
+        setOpenJobs(jobs);
+      });
 
-    const unsubscribeUser = subscribeToUserJobs(user.email!, (jobs) => {
-      setUserJobs(jobs);
-    });
+      const unsubscribeUser = subscribeToUserJobs(user.email!, (jobs) => {
+        setUserJobs(jobs);
+      });
 
-    return () => {
-      unsubscribeOpen();
-      unsubscribeUser();
-    };
+      return () => {
+        unsubscribeOpen();
+        unsubscribeUser();
+      };
+    } catch (error) {
+      console.error('❌ Error setting up subscriptions:', error);
+    }
   }, [user]);
 
   const loadInitialData = async () => {
