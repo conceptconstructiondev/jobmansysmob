@@ -1,10 +1,12 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import * as Notifications from 'expo-notifications';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
 
+import { NotificationData } from '@/constants/Notifications';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { JobProvider } from '@/contexts/JobContext';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -12,6 +14,46 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { user, loading } = useAuth();
+  const notificationListener = useRef<Notifications.Subscription>();
+  const responseListener = useRef<Notifications.Subscription>();
+
+  // Set up notification listeners
+  useEffect(() => {
+    // This listener is fired whenever a notification is received while the app is foregrounded
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notification received:', notification);
+      const data = notification.request.content.data as NotificationData;
+      
+      // You can handle different notification types here
+      if (data?.type === 'job_created') {
+        console.log('New job notification received:', data);
+      }
+    });
+
+    // This listener is fired whenever a user taps on or interacts with a notification
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Notification response:', response);
+      const data = response.notification.request.content.data as NotificationData;
+      
+      // Navigate to specific screens based on notification data
+      if (data?.jobId) {
+        // Navigate to job details
+        router.push(`/(tabs)/jobs/${data.jobId}`);
+      } else if (data?.type === 'job_created') {
+        // Navigate to jobs list
+        router.push('/(tabs)/jobs');
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     console.log('Auth state effect:', { user: user?.email, loading });

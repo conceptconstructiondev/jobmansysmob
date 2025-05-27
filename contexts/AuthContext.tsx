@@ -1,11 +1,12 @@
-import { auth } from '@/config/firebase';
+import { auth, removeNotificationToken, saveNotificationToken } from '@/config/firebase';
+import { registerForPushNotificationsAsync } from '@/constants/Notifications';
 import {
-  User,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile
+    User,
+    createUserWithEmailAndPassword,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile
 } from 'firebase/auth';
 import React, { ReactNode, createContext, useContext, useEffect, useState } from 'react';
 
@@ -15,6 +16,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
+  expoPushToken: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,12 +24,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+
+  // Register for push notifications and save token when user signs in
+  useEffect(() => {
+    if (user && !expoPushToken) {
+      registerForPushNotificationsAsync().then(token => {
+        if (token) {
+          setExpoPushToken(token);
+          saveNotificationToken(user.uid, token).catch(error => {
+            console.error('Failed to save notification token:', error);
+          });
+        }
+      });
+    }
+  }, [user, expoPushToken]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       console.log('Auth state changed:', user?.email || 'No user');
       setUser(user);
       setLoading(false);
+      
+      // Clear token when user signs out
+      if (!user) {
+        setExpoPushToken(null);
+      }
     }, (error) => {
       console.error('Auth state change error:', error);
       setLoading(false);
@@ -60,6 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       console.log('Attempting to sign out...');
+      
+      // Remove notification token before signing out
+      if (user) {
+        await removeNotificationToken(user.uid).catch(error => {
+          console.error('Failed to remove notification token:', error);
+        });
+      }
+      
       await signOut(auth);
       console.log('Sign out successful');
       // The onAuthStateChanged listener will automatically update the user state
@@ -70,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, logout, expoPushToken }}>
       {children}
     </AuthContext.Provider>
   );

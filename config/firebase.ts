@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getFirestore, setDoc } from 'firebase/firestore';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -19,6 +19,47 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// Notification token management functions
+export async function saveNotificationToken(userId: string, token: string) {
+  try {
+    await setDoc(doc(db, 'notificationTokens', userId), {
+      token,
+      userId,
+      updatedAt: new Date(),
+      platform: 'expo'
+    });
+    console.log('Notification token saved successfully');
+  } catch (error) {
+    console.error('Error saving notification token:', error);
+    throw error;
+  }
+}
+
+export async function removeNotificationToken(userId: string) {
+  try {
+    await deleteDoc(doc(db, 'notificationTokens', userId));
+    console.log('Notification token removed successfully');
+  } catch (error) {
+    console.error('Error removing notification token:', error);
+    throw error;
+  }
+}
+
+export async function logNotification(userId: string, title: string, body: string, data?: any) {
+  try {
+    await addDoc(collection(db, 'notificationLogs'), {
+      userId,
+      title,
+      body,
+      data,
+      sentAt: new Date(),
+      platform: 'expo'
+    });
+  } catch (error) {
+    console.error('Error logging notification:', error);
+  }
+}
 
 export { auth, db };
 export default app; 
