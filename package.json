@@ -40,7 +40,6 @@
     "react-native-screens": "~4.10.0",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
-    "undefined": "firebase/firestore",
     "expo-notifications": "~0.31.2",
     "expo-device": "~7.1.4"
   },
