@@ -77,12 +77,12 @@ export const getOpenJobs = async (): Promise<(Job & { id: string })[]> => {
 };
 
 // Get only jobs for the current user (for "My Jobs" tab)
-export const getUserJobs = async (userId: string): Promise<(Job & { id: string })[]> => {
+export const getUserJobs = async (userEmail: string): Promise<(Job & { id: string })[]> => {
   try {
     const jobsRef = collection(db, JOBS_COLLECTION);
     const q = query(
       jobsRef,
-      where('acceptedBy', '==', userId),
+      where('acceptedBy', '==', userEmail),
       where('status', 'in', ['accepted', 'onsite']), // Only active jobs
       orderBy('updatedAt', 'desc')
     );
@@ -124,13 +124,13 @@ export const subscribeToOpenJobs = (callback: (jobs: (Job & { id: string })[]) =
 };
 
 // Real-time listener for USER's jobs only
-export const subscribeToUserJobs = (userId: string, callback: (jobs: (Job & { id: string })[]) => void) => {
-  console.log('Setting up user jobs listener for:', userId);
+export const subscribeToUserJobs = (userEmail: string, callback: (jobs: (Job & { id: string })[]) => void) => {
+  console.log('Setting up user jobs listener for:', userEmail);
   
   const jobsRef = collection(db, JOBS_COLLECTION);
   const q = query(
     jobsRef,
-    where('acceptedBy', '==', userId),
+    where('acceptedBy', '==', userEmail),
     orderBy('updatedAt', 'desc')
   );
   
@@ -156,15 +156,15 @@ export const subscribeToUserJobs = (userId: string, callback: (jobs: (Job & { id
 };
 
 // Accept a job
-export const acceptJob = async (jobId: string, userId: string, userName: string): Promise<void> => {
-  console.log('acceptJob called with:', { jobId, userId, userName });
+export const acceptJob = async (jobId: string, userEmail: string, userName: string): Promise<void> => {
+  console.log('acceptJob called with:', { jobId, userEmail, userName });
   
   try {
     const jobRef = doc(db, JOBS_COLLECTION, jobId);
     
     const updateData = {
       status: 'accepted' as const,
-      acceptedBy: userId,
+      acceptedBy: userEmail,
       acceptedByName: userName,
       acceptedAt: Timestamp.now(),
       updatedAt: Timestamp.now()

@@ -46,17 +46,17 @@ export function JobProvider({ children }: { children: ReactNode }) {
 
   // Subscribe to user's jobs (for "My Jobs" tab)
   useEffect(() => {
-    if (!user) {
-      console.log('No user, clearing user jobs');
+    if (!user || !user.email) {
+      console.log('No user or email, clearing user jobs');
       setUserJobs([]);
       setUserJobsLoading(false);
       return;
     }
 
-    console.log('Setting up user jobs subscription for:', user.uid);
+    console.log('Setting up user jobs subscription for:', user.email);
 
-    const unsubscribe = subscribeToUserJobs(user.uid, (jobs) => {
-      console.log('User jobs updated:', jobs.length, 'jobs for user', user.uid);
+    const unsubscribe = subscribeToUserJobs(user.email, (jobs) => {
+      console.log('User jobs updated:', jobs.length, 'jobs for user', user.email);
       setUserJobs(jobs);
       setUserJobsLoading(false);
     });
@@ -73,12 +73,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
       throw new Error('User not authenticated');
     }
     
-    console.log('Attempting to accept job:', jobId, 'for user:', user.uid);
+    console.log('Attempting to accept job:', jobId, 'for user:', user.email);
     
     try {
       const userName = user.displayName || user.email || 'Unknown';
+      const userEmail = user.email || 'unknown@email.com';
       
-      await acceptJobService(jobId, user.uid, userName);
+      await acceptJobService(jobId, userEmail, userName);
       console.log('Job accepted successfully:', jobId);
       
     } catch (error) {
