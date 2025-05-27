@@ -1,19 +1,20 @@
 import { db } from '@/config/firebase';
 import { Job } from '@/constants/JobsData';
+import { notifyNewJob } from '@/services/notificationService';
 import {
-  addDoc,
-  collection,
-  doc,
-  DocumentData,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  startAfter,
-  Timestamp,
-  updateDoc,
-  where
+    addDoc,
+    collection,
+    doc,
+    DocumentData,
+    getDocs,
+    limit,
+    onSnapshot,
+    orderBy,
+    query,
+    startAfter,
+    Timestamp,
+    updateDoc,
+    where
 } from 'firebase/firestore';
 
 const JOBS_COLLECTION = 'jobs';
@@ -229,7 +230,9 @@ export const completeJob = async (jobId: string, photo: string, notes: string): 
 export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 'acceptedBy'>): Promise<string> => {
   try {
     const jobsRef = collection(db, JOBS_COLLECTION);
-    const docRef = await addDoc(jobsRef, {
+    
+    // Create the job data object without undefined fields
+    const jobData: any = {
       title: job.title,
       description: job.description,
       company: job.company,
@@ -240,14 +243,30 @@ export const createJob = async (job: Omit<Job, 'onsiteTime' | 'completedTime' | 
       invoiced: job.invoiced,
       onsiteTime: null,
       completedTime: null,
-      workStartedImage: undefined,
-      workStartedNotes: undefined,
-      workCompletedImage: undefined,
-      workCompletedNotes: undefined,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
-    });
+    };
+    
+    // Only add image/notes fields if they exist (don't add undefined)
+    // Remove these lines that set undefined:
+    // workStartedImage: undefined,
+    // workStartedNotes: undefined,
+    // workCompletedImage: undefined,
+    // workCompletedNotes: undefined,
+    
+    const docRef = await addDoc(jobsRef, jobData);
+    
     console.log('Job created with ID:', docRef.id);
+    
+    // Send notification to all users
+    try {
+      await notifyNewJob(docRef.id, job.title, job.company);
+      console.log('New job notification sent successfully');
+    } catch (notificationError) {
+      console.error('Failed to send new job notification:', notificationError);
+      // Don't throw here - job creation should succeed even if notification fails
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('Error creating job:', error);

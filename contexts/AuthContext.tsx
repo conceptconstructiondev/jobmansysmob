@@ -1,6 +1,6 @@
 import { auth, removeNotificationToken, saveNotificationToken } from '@/config/firebase';
-import { supabase } from '@/config/supabase';
 import { registerForPushNotificationsAsync } from '@/services/notificationService';
+import { createClient } from '@supabase/supabase-js';
 import {
   User,
   createUserWithEmailAndPassword,
@@ -21,6 +21,11 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const supabaseUrl = 'https://wxmwxbazfukpunmgdscu.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // This is all you need!
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -58,23 +63,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return unsubscribe;
   }, []);
-
-  useEffect(() => {
-    const syncSupabaseAuth = async () => {
-      if (user) {
-        // Create a custom JWT or use Supabase auth
-        // For now, we can use a simple approach with the user's email
-        const { error } = await supabase.auth.signInAnonymously();
-        if (error) {
-          console.error('Supabase auth error:', error);
-        }
-      } else {
-        await supabase.auth.signOut();
-      }
-    };
-
-    syncSupabaseAuth();
-  }, [user]);
 
   const signIn = async (email: string, password: string) => {
     try {

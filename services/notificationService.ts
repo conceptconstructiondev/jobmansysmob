@@ -90,12 +90,12 @@ export async function savePushToken(userId: string, token: string): Promise<void
 // Get all push tokens for broadcasting
 export async function getAllPushTokens(): Promise<string[]> {
   try {
-    const tokensRef = collection(db, PUSH_TOKENS_COLLECTION);
+    // Use 'notificationTokens' collection (same as AuthContext)
+    const tokensRef = collection(db, 'notificationTokens');
     const querySnapshot = await getDocs(tokensRef);
     
     return querySnapshot.docs
-      .map(doc => doc.data() as PushTokenDoc)
-      .map(data => data.token)
+      .map(doc => doc.data().token)
       .filter(token => token && token.length > 0);
   } catch (error) {
     console.error('Error fetching push tokens:', error);
@@ -142,9 +142,13 @@ export async function sendPushNotification(
 // Notify all users of new job
 export async function notifyNewJob(jobId: string, jobTitle: string, company: string): Promise<void> {
   try {
+    console.log('🚨 notifyNewJob called with:', { jobId, jobTitle, company });
+    
     const tokens = await getAllPushTokens();
+    console.log('📱 Found push tokens:', tokens.length, tokens);
     
     if (tokens.length > 0) {
+      console.log('📤 Sending push notification...');
       await sendPushNotification(
         tokens,
         '🚨 New Job Available!',
@@ -156,9 +160,12 @@ export async function notifyNewJob(jobId: string, jobTitle: string, company: str
           company,
         }
       );
+      console.log('✅ Push notification sent successfully');
+    } else {
+      console.log('❌ No push tokens found - no notifications sent');
     }
   } catch (error) {
-    console.error('Error sending new job notification:', error);
+    console.error('❌ Error sending new job notification:', error);
   }
 }
 
