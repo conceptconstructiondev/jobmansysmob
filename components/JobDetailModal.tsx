@@ -2,9 +2,10 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Job } from '@/constants/JobsData';
+import { getSignedImageUrl, uploadImage } from '@/services/imageService';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 interface JobDetailModalProps {
@@ -25,8 +26,32 @@ export function JobDetailModal({
   const [notes, setNotes] = useState('');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  // State for signed URLs of existing images
+  const [workStartedImageUrl, setWorkStartedImageUrl] = useState<string | null>(null);
+  const [workCompletedImageUrl, setWorkCompletedImageUrl] = useState<string | null>(null);
 
   if (!job) return null;
+
+  // Load signed URLs for existing images
+  useEffect(() => {
+    const loadImageUrls = async () => {
+      if (job.workStartedImage) {
+        const url = await getSignedImageUrl(job.workStartedImage);
+        setWorkStartedImageUrl(url);
+      }
+      
+      if (job.workCompletedImage) {
+        const url = await getSignedImageUrl(job.workCompletedImage);
+        setWorkCompletedImageUrl(url);
+      }
+    };
+
+    if (visible) {
+      loadImageUrls();
+    }
+  }, [job, visible]);
 
   const compressImage = async (uri: string): Promise<string> => {
     try {
@@ -83,8 +108,7 @@ export function JobDetailModal({
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -103,8 +127,7 @@ export function JobDetailModal({
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -131,32 +154,63 @@ export function JobDetailModal({
     );
   };
 
-  const handleMarkOnSite = () => {
+  const handleMarkOnSite = async () => {
     if (!notes.trim()) {
       Alert.alert('Error', 'Please enter work start notes');
       return;
     }
     
-    const photoUrl = capturedPhoto || '';
+    setIsUploading(true);
     
-    onMarkOnSite(job.id, photoUrl, notes);
-    setNotes('');
-    setCapturedPhoto(null);
-    onClose();
+    try {
+      let filePath = '';
+      
+      // Upload image if one was captured
+      if (capturedPhoto) {
+        console.log('Uploading work started image...');
+        filePath = await uploadImage(capturedPhoto, job.id, 'workStarted');
+      }
+      
+      await onMarkOnSite(job.id, filePath, notes);
+      setNotes('');
+      setCapturedPhoto(null);
+      onClose();
+      
+    } catch (error) {
+      console.error('Error marking job on-site:', error);
+      Alert.alert('Error', 'Failed to save job update. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     if (!notes.trim()) {
       Alert.alert('Error', 'Please enter completion notes');
       return;
     }
     
-    const photoUrl = capturedPhoto || '';
+    setIsUploading(true);
     
-    onComplete(job.id, photoUrl, notes);
-    setNotes('');
-    setCapturedPhoto(null);
-    onClose();
+    try {
+      let filePath = '';
+      
+      if (capturedPhoto) {
+        console.log('Uploading work completed image...');
+        filePath = await uploadImage(capturedPhoto, job.id, 'workCompleted');
+      }
+      
+      await onComplete(job.id, filePath, notes);
+      setNotes('');
+      setCapturedPhoto(null);
+      onClose();
+      
+    } catch (error) {
+      console.error('Error completing job:', error);
+      Alert.alert('Error', 'Failed to save job completion. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const getStatusColor = (status: Job['status']) => {
@@ -174,6 +228,8 @@ export function JobDetailModal({
     setCapturedPhoto(null);
     onClose();
   };
+
+  const isButtonDisabled = !notes.trim() || isProcessingImage || isUploading;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -250,11 +306,13 @@ export function JobDetailModal({
                 )}
 
                 <TouchableOpacity 
-                  style={[styles.actionButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
+                  style={[styles.actionButton, isButtonDisabled && styles.disabledButton]} 
                   onPress={handleMarkOnSite}
-                  disabled={!notes.trim() || isProcessingImage}
+                  disabled={isButtonDisabled}
                 >
-                  <ThemedText style={styles.actionButtonText}>Mark On-Site</ThemedText>
+                  <ThemedText style={styles.actionButtonText}>
+                    {isUploading ? 'Uploading...' : 'Mark On-Site'}
+                  </ThemedText>
                 </TouchableOpacity>
               </ThemedView>
             )}
@@ -302,29 +360,31 @@ export function JobDetailModal({
                 )}
 
                 <TouchableOpacity 
-                  style={[styles.actionButton, styles.completeButton, (!notes.trim() || isProcessingImage) && styles.disabledButton]} 
+                  style={[styles.actionButton, styles.completeButton, isButtonDisabled && styles.disabledButton]} 
                   onPress={handleComplete}
-                  disabled={!notes.trim() || isProcessingImage}
+                  disabled={isButtonDisabled}
                 >
-                  <ThemedText style={styles.actionButtonText}>Complete Job</ThemedText>
+                  <ThemedText style={styles.actionButtonText}>
+                    {isUploading ? 'Uploading...' : 'Complete Job'}
+                  </ThemedText>
                 </TouchableOpacity>
               </ThemedView>
             )}
 
-            {job.workStartedImage && (
+            {workStartedImageUrl && (
               <ThemedView style={styles.noteSection}>
                 <ThemedText type="subtitle">Work Started:</ThemedText>
-                <Image source={{ uri: job.workStartedImage }} style={styles.existingImage} />
+                <Image source={{ uri: workStartedImageUrl }} style={styles.existingImage} />
                 {job.workStartedNotes && (
                   <ThemedText style={styles.noteText}>{job.workStartedNotes}</ThemedText>
                 )}
               </ThemedView>
             )}
 
-            {job.workCompletedImage && (
+            {workCompletedImageUrl && (
               <ThemedView style={styles.noteSection}>
                 <ThemedText type="subtitle">Work Completed:</ThemedText>
-                <Image source={{ uri: job.workCompletedImage }} style={styles.existingImage} />
+                <Image source={{ uri: workCompletedImageUrl }} style={styles.existingImage} />
                 {job.workCompletedNotes && (
                   <ThemedText style={styles.noteText}>{job.workCompletedNotes}</ThemedText>
                 )}
@@ -444,10 +504,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   previewImage: {
-    width: 200,
-    height: 150,
+    width: '100%',
+    height: 200,
     borderRadius: 8,
-    marginBottom: 8,
+    resizeMode: 'cover',
   },
   removePhotoButton: {
     backgroundColor: '#FF6B6B',

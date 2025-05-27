@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -33,19 +34,25 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     }
     
     if (finalStatus !== 'granted') {
-      alert('Failed to get push token for push notification!');
+      console.log('Failed to get push token for push notification!');
       return null;
     }
     
     try {
-      const projectId = '300633467159'; // Your Firebase project's sender ID
-      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      // Use the correct EAS project ID from app.json
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? 'a982f974-2c28-43d8-a920-f7ba93ee57be';
+      
+      const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+      
+      token = pushTokenData.data;
       console.log('Expo push token:', token);
     } catch (error) {
       console.error('Error getting push token:', error);
     }
   } else {
-    alert('Must use physical device for Push Notifications');
+    console.log('Must use physical device for Push Notifications');
   }
 
   return token;

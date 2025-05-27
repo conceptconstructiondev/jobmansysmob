@@ -25,11 +25,10 @@ interface PushTokenDoc {
   updatedAt: Timestamp;
 }
 
-// Register for push notifications (based on official example)
+// Register for push notifications (using EAS project ID)
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   let token = null;
 
-  // Android setup (from docs)
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Job Notifications',
@@ -53,13 +52,9 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       return null;
     }
 
-    // Get project ID (exact method from official docs)
     try {
-      const projectId =
-        Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-      if (!projectId) {
-        throw new Error('Project ID not found');
-      }
+      // Use the correct EAS project ID
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? 'a982f974-2c28-43d8-a920-f7ba93ee57be';
       
       const pushTokenData = await Notifications.getExpoPushTokenAsync({
         projectId,

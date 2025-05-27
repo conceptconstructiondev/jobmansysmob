@@ -1,23 +1,30 @@
+import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { UserProfile } from '@/components/UserProfile';
-import { registerForPushNotificationsAsync } from '@/constants/Notifications';
+import { registerForPushNotificationsAsync } from '@/services/notificationService';
 import * as Notifications from 'expo-notifications';
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 export default function ProfileScreen() {
   
   const testNotification = async () => {
-    const token = await registerForPushNotificationsAsync();
-    console.log('Push token:', token);
-    
-    // Test local notification
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Test Notification",
-        body: "This is a test notification!",
-      },
-      trigger: { seconds: 1 },
-    });
+    try {
+      const token = await registerForPushNotificationsAsync();
+      console.log('Push token:', token);
+      
+      // Test local notification
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Test Notification",
+          body: "This is a test notification!",
+        },
+        trigger: { seconds: 1 },
+      });
+      
+      console.log('Test notification scheduled');
+    } catch (error) {
+      console.error('Error testing notification:', error);
+    }
   };
 
   return (

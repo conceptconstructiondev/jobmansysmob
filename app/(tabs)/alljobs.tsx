@@ -7,6 +7,7 @@ import { useJobs } from '@/contexts/JobContext';
 import { useJobCache } from '@/hooks/useJobCache';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface JobCardProps {
   job: Job & { id: string };
@@ -49,6 +50,7 @@ export default function TabTwoScreen() {
   const { user } = useAuth();
   const { getCachedOpenJobs, cacheOpenJobs } = useJobCache();
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
   console.log('AllJobs render:', { 
     openJobsCount: openJobs.length, 
@@ -102,7 +104,7 @@ export default function TabTwoScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={[styles.container, styles.centered]}>
+      <ThemedView style={[styles.container, styles.centered, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#4ECDC4" />
         <ThemedText style={styles.loadingText}>Loading available jobs...</ThemedText>
       </ThemedView>
@@ -111,7 +113,11 @@ export default function TabTwoScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+        showsVerticalScrollIndicator={false}
+      >
         <ThemedView style={styles.titleContainer}>
           <ThemedText type="title">All Jobs</ThemedText>
           <ThemedText style={styles.subtitle}>Available jobs you can accept</ThemedText>
@@ -151,6 +157,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 100, // Extra bottom padding for tab bar
   },
   titleContainer: {
     marginBottom: 20,

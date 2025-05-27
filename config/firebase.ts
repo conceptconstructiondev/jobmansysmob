@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { addDoc, collection, deleteDoc, doc, getFirestore, setDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -19,6 +20,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Notification token management functions
 export async function saveNotificationToken(userId: string, token: string) {
@@ -61,5 +63,5 @@ export async function logNotification(userId: string, title: string, body: strin
   }
 }
 
-export { auth, db };
+export { auth, db, storage };
 export default app; 
