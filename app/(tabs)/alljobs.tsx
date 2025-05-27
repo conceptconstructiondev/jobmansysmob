@@ -115,7 +115,7 @@ export default function TabTwoScreen() {
     <ThemedView style={styles.container}>
       <ScrollView 
         style={styles.scrollView} 
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
         showsVerticalScrollIndicator={false}
       >
         <ThemedView style={styles.titleContainer}>

@@ -12,7 +12,7 @@ export const uploadImage = async (
     const response = await fetch(imageUri);
     const blob = await response.blob();
     
-    // Create unique filename
+    // Create unique filename with user ID for better organization
     const timestamp = Date.now();
     const fileName = `${jobId}_${imageType}_${timestamp}.jpg`;
     const filePath = `jobs/${jobId}/${fileName}`;
@@ -24,7 +24,13 @@ export const uploadImage = async (
       .from('conceptapp-imageuploads')
       .upload(filePath, blob, {
         contentType: 'image/jpeg',
-        upsert: false
+        upsert: false,
+        // Add metadata for better tracking
+        metadata: {
+          jobId,
+          imageType,
+          uploadedAt: new Date().toISOString()
+        }
       });
 
     if (error) {
