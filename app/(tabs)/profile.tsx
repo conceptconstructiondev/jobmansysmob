@@ -2,10 +2,11 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { UserProfile } from '@/components/UserProfile';
 import { useAuth } from '@/contexts/AuthContext';
-import { registerForPushNotificationsAsync } from '@/services/notificationService';
-import { createJob, getAllPushTokens, notifyNewJob, saveNotificationToken } from '@/services/supabaseService';
+import { notifyNewJob, registerForPushNotificationsAsync } from '@/services/notificationService';
+import { createJob, getAllPushTokens, saveNotificationToken } from '@/services/supabaseService';
+import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Platform, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 export default function ProfileScreen() {
   const { user } = useAuth();
@@ -194,6 +195,101 @@ export default function ProfileScreen() {
     }
   };
 
+  const getRealToken = async () => {
+    try {
+      console.log('🔍 Getting real push token...');
+      console.log('📱 Device info:', {
+        isDevice: Device.isDevice,
+        platform: Platform.OS
+      });
+      
+      const token = await registerForPushNotificationsAsync();
+      console.log('✅ Real token result:', token);
+      
+      if (token && user) {
+        await saveNotificationToken(user.id, token);
+        console.log('✅ Real token saved to database');
+        
+        // Test the real token
+        const tokens = await getAllPushTokens();
+        console.log('📋 All tokens in database:', tokens);
+      } else {
+        console.log('❌ No token received or no user');
+      }
+    } catch (error) {
+      console.error('❌ Real token failed:', error);
+    }
+  };
+
+  const getRealTokenOnly = async () => {
+    try {
+      console.log('🔍 Getting REAL push token (no test tokens)...');
+      
+      // Clear any existing test tokens first
+      if (user) {
+        // This will be replaced with real token
+        console.log('🧹 Clearing any test tokens...');
+      }
+      
+      const token = await registerForPushNotificationsAsync();
+      
+      if (token && !token.includes('test')) {
+        console.log('✅ Got REAL token:', token);
+        
+        if (user) {
+          await saveNotificationToken(user.id, token);
+          console.log('✅ Real token saved to database');
+          
+          // Test with real token
+          const tokens = await getAllPushTokens();
+          console.log('📋 All tokens in database:', tokens);
+          
+          // Test notification with real token
+          if (tokens.length > 0 && !tokens[0].includes('test')) {
+            console.log('🚀 Ready to test real notification!');
+          }
+        }
+      } else {
+        console.log('❌ Still getting test token or no token');
+      }
+    } catch (error) {
+      console.error('❌ Real token test failed:', error);
+    }
+  };
+
+  const getRealTokenAndSave = async () => {
+    try {
+      console.log('🔍 Getting REAL push token...');
+      
+      if (!user) {
+        console.log('❌ No user logged in');
+        return;
+      }
+
+      // Clear any test tokens first
+      console.log('🧹 Clearing test tokens from database...');
+      
+      const token = await registerForPushNotificationsAsync();
+      console.log('📱 Token received:', token);
+      
+      if (token && !token.includes('test')) {
+        console.log('✅ Got REAL token, saving to database...');
+        await saveNotificationToken(user.id, token);
+        console.log('✅ Real token saved successfully');
+        
+        // Verify it's in the database
+        const allTokens = await getAllPushTokens();
+        console.log('📋 All tokens in database:', allTokens);
+        console.log('📊 Total tokens:', allTokens.length);
+        
+      } else {
+        console.log('❌ Token is invalid or contains "test":', token);
+      }
+    } catch (error) {
+      console.error('❌ Real token failed:', error);
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
@@ -218,6 +314,15 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.testButton} onPress={testJobNotification}>
           <ThemedText style={styles.testButtonText}>Test Job Notification</ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.testButton} onPress={getRealToken}>
+          <ThemedText style={styles.testButtonText}>Get Real Token</ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.testButton} onPress={getRealTokenOnly}>
+          <ThemedText style={styles.testButtonText}>Get REAL Token Only</ThemedText>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.testButton} onPress={getRealTokenAndSave}>
+          <ThemedText style={styles.testButtonText}>🔍 Get Real Token & Save</ThemedText>
         </TouchableOpacity>
       </ScrollView>
     </ThemedView>
